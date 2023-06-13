@@ -253,7 +253,6 @@ get_mouse_pointer_position :: inline (right_handed := false) -> x: int, y: int, 
     return x, y, success;
 }
 
-
 #scope_module
 
 #import "Basic";

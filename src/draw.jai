@@ -66,6 +66,12 @@ draw_frame :: () {
 
     draw_user_messages(screen, footer_height);
 
+    if eye_tracking_active && eye_tracking_hot {
+        size :: 2.0;
+        rect := Rect.{x=calibrated_eye_position.x-size, y=calibrated_eye_position.y-size, w=size*2, h=size*2};
+        draw_rect(rect, Colors.CURSOR);
+    }
+
     // Reset UI state after drawing
     if !mouse.left.is_down || mouse.left.just_released {
         ui.active = .none;
@@ -301,6 +307,26 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     // Calculate text origin in screen coordinates
     text_offset := make_vector2(char_x_advance, -char_x_advance);
     text_origin := top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
+
+    if should_jump_to_eye_tracker == editor_id {
+        should_jump_to_eye_tracker = -1;
+
+        pointer := snap_to_rect(calibrated_eye_position, rect);
+        mouse_pos := pointer - bottom_left(rect) - text_offset;
+        mouse_pos.x += viewport.left;
+        mouse_pos.y = rect.h - mouse_pos.y + viewport.top - ifx dpi_scale > 1.0 then 1 else 0;
+        coords := Coords.{ line = xx (mouse_pos.y / line_height), col = xx ((mouse_pos.x / char_x_advance) + 0.5) };
+
+        cursors_stop_blinking();
+
+        cursor := leave_only_original_cursor(editor);
+        cursor.pos = coords_to_offset(buffer, coords);
+        cursor.col_wanted = -1;
+        cursor_moved = .jumped;
+        cursor.sel = cursor.pos;
+
+        organise_cursors(editor, *selection_mode);
+    }
 
     if ui.active == ui_id && (mouse.left.just_pressed || mouse.left.is_dragging) {
         // Calculate the position of the mouse

@@ -3,6 +3,14 @@
 #import "Hash_Table";
 
 
+is_key_held :: inline (vkey: u32) -> bool {
+    return table_find_pointer(*key_down_table, vkey) != null;
+}
+
+dump_held_keys :: () {
+    for key_down_table  print("%: %\n", it_index, it);
+}
+
 //
 // @Incomplete @Robustness: We should check whichever flags Windows gives us automatically
 // in the event data (e.g. is control held, is shift held, etc)... rather than maintaining
@@ -661,8 +669,6 @@ add_move_record :: (hwnd: HWND) {
 }
 
 
-
-
 #scope_file
 windows_ignore_setcursor_messages := false;
 
@@ -678,6 +684,7 @@ set_key_down_state :: (vkey : u32, is_down: bool) -> was_down:bool {
 
     return was_down;
 }
+
 
 maybe_send_vkey_event :: (vkey: u64, key_down: bool, repeat := false) {
     was_down := set_key_down_state(cast,trunc(u32) vkey, key_down);

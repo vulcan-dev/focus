@@ -2,9 +2,15 @@
 
 - [x] center on cursor
 - [x] cursor history
-- [ ] eye
+- [.] eye
+    - [ ] check for line length
+    - [ ] jump to looked-at editor, not active editor
+    - [ ] add indicator that eye tracking is lost
 - [x] multicursor
 - [.] default monitor
+- [ ] lexing/parsing
+- [ ] return/break/continue
+- [ ] theme
 
 
 # TODO

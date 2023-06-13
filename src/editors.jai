@@ -153,6 +153,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_editor_to_the_left;          if editors.active == editors.right then swap_panes();
         case .move_editor_to_the_right;         if editors.active == editors.left  then swap_panes();
         case .center_viewport_on_cursor;        center_viewport_on_cursor           (editor, buffer);
+        case .jump_to_eye_tracker;              jump_to_eye_tracker                 (editor, buffer);
         case .move_cursor_to_viewport_center;   move_cursor_to_viewport_center      (editor, buffer);
         case .remove_additional_cursors;        remove_additional_cursors           (editor);
         case .scroll_viewport_up;               smooth_scroll(editor, direction = .up);                 activate_hold_action(action, event);
@@ -467,6 +468,12 @@ move_viewport :: (editor: *Editor, dir: enum { left; up; right; down; }) {
 
 center_viewport_on_cursor :: (using editor: *Editor, buffer: Buffer) {
     editor.scroll_to_cursor = .yes;
+}
+
+
+jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
+    if eye_tracking_active && eye_tracking_hot
+        should_jump_to_eye_tracker = editors.active;
 }
 
 

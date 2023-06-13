@@ -353,6 +353,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "move_up_to_empty_line",
     "move_down_to_empty_line",
     "center_viewport_on_cursor",
+    "jump_to_eye_tracker",
     "move_cursor_to_viewport_center",
     "remove_additional_cursors",
     "break_line",

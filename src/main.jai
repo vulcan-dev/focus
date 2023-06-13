@@ -93,8 +93,17 @@ main :: () {
         press_count := 0;
     };
 
+    if eye_tracking_active {
+        eye_tracking_init();
+    }
+
     while !should_quit {
+        redraw_requested = true;
         if !redraw_requested platform_wait_message();
+
+        if eye_tracking_active {
+            eye_tracking_tick();
+        }
 
         Input.update_window_events();
 
@@ -281,6 +290,10 @@ main :: () {
             // NOTE: I tried vsync but for some reason it felt super bad - didn't figure out exactly why
             sleep_milliseconds(2);
         }
+    }
+
+    if eye_tracking_active {
+        eye_tracking_done();
     }
 
     // report := make_leak_report();
@@ -673,6 +686,7 @@ dont_ignore_next_window_resize := false;
 #load "session.jai";
 #load "meow_hash.jai";
 #load "user_messages.jai";
+#load "eye_tracking.jai";
 
 #load "widgets/text_input.jai";
 #load "widgets/open_file_dialog.jai";
