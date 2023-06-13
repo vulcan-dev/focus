@@ -789,7 +789,11 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
     offset := 0;
     i := 0;
     while true {
-        offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive);
+        if case_sensitive {
+            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = true);
+        } else {
+            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = false);
+        }
         if offset < 0 break;
 
         if !whole_word || (whole_word && match_whole_word(buffer_str, offset, needle.count)) {
@@ -1199,7 +1203,7 @@ switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := fa
             }
             if duplicate_current {
                 duplicated_editor := duplicate_active_editor();
-                
+
                 if side == .left {
                     editors.left   = duplicated_editor;
                     editors.right  = editors.active;
@@ -1226,7 +1230,7 @@ duplicate_active_editor :: () -> s64 {
 
     // Duplicate cursors
     if duplicated_editor.cursors then array_reset(*duplicated_editor.cursors);
-    for current_editor.cursors { array_add(*duplicated_editor.cursors, it); } 
+    for current_editor.cursors { array_add(*duplicated_editor.cursors, it); }
     duplicated_editor.main_cursor     = current_editor.main_cursor;
     duplicated_editor.original_cursor = current_editor.original_cursor;
 
@@ -2179,8 +2183,9 @@ copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false) 
     any_selection := false;
     for cursor : editor.cursors { if has_selection(cursor) { any_selection = true; break; } }
 
-    if cut && !any_selection {
+    if !any_selection && (cut || config.settings.copy_whole_line_without_selection) {
         // If no cursors have a selection, then pressing cut will cut whole lines
+        // (or copy them if it's enabled in the config file)
         for * cursor : editor.cursors {
             // Select the whole line
             line := offset_to_line(buffer, cursor.pos);
@@ -2189,8 +2194,7 @@ copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false) 
             cursor.col_wanted = -1;
         }
         organise_cursors(editor);  // resolve overlapping selections
-    } else if !cut && !any_selection {
-        // TODO: have a config option to copy line where there's no selection for those who want it
+    } else if !any_selection {
         return;  // don't want to trash the clipboard when you accidentally press Ctrl+C
     }
 
@@ -2199,7 +2203,7 @@ copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false) 
     for * cursor : editor.cursors {
         str := get_selected_string(cursor, buffer);
         append(*b, str);
-        if it_index < editor.cursors.count -1 then append(*b, "\n");
+        if it_index < editor.cursors.count-1 && str && str[str.count-1] != #char "\n" then append(*b, "\n");
         cursor.clipboard = .{ start = xx offset, count = xx str.count };
         offset += str.count + 1;
     }

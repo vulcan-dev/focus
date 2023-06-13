@@ -26,7 +26,7 @@ __pycache__
 .exe .pdb .ttf .otf .eot .woff *woff? .dll .lib .dylib .so *so.* .a .o .pdf
 .jpg .png .gif .jpeg .ico .tif .tiff .tga .bmp .webp  # maybe someday we'll support opening images
 .mp3 .wav .ogg .wma
-.blend .obj .fbx .dae .3ds .dat
+.blend .obj .fbx .dae .3ds .dat .msh2
 .mpg .mpeg .psd .codex .webm .wma
 .zip .rar .7z
 .bin .sys .iso
@@ -48,6 +48,7 @@ strip_trailing_whitespace_on_save:      false
 smooth_scrolling:                       true
 double_shift_to_search_in_workspace:    false
 can_cancel_go_to_line:                  true
+copy_whole_line_without_selection:      false
 max_entries_in_open_file_dialog:        2000
 tab_size:                               4
 line_height_scale_percent:              120
@@ -59,9 +60,6 @@ scroll_to_cursor_line_offset            1
 [[keymap]]
 
 # - The first matching combination will be used, so order matters
-# - E.g. [open file dialog] means the keys in this section will only be used when the open file dialog is open
-# - You can override the keys partially - the default combinations will be used for the actions you didn't specify
-# - If you want to disable a particular combination, use a do_nothing action for it
 
 [editors]   # <- this means that the following key combos will apply only when editing text
 

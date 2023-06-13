@@ -1,5 +1,7 @@
 # TODO
 
+- Config migration
+
 - Line wrap:
     - Have line_starts for editor
     - Implement wrapping for buffer
@@ -14,7 +16,6 @@
 - Ctrl-K and other shortcuts should work in text inputs
 - Notify about duplicate bindings and highlight that in the config file
 - Search returns extra results: Runtime_Support, report_bounds_check_error_more_visibly
-- Limit editor width
 - Colors per programming language
     - Get the list of available colors
 
@@ -26,12 +27,11 @@
     - Think about it some more
 
 - Improve the scoring for fuzzy search (maybe after the fact even) - score matches closer together higher
+    - When a capital letter is present, score matching case higher?
 
 - Ignore files and dirs during search - have a bunch of wildcards
 
 - Have a font_ui config setting
-
-- Fix the multi-line copying and pasting - https://discord.com/channels/661732390355337246/1100701456950099978/1103153377237540874
 
 - Pass a path to global config as a parameter
 
@@ -185,6 +185,14 @@
 - Investigate a crash when font size is too large - copy glyph to buffer segfaults
 
 # DONE
++ Don't merge into default config
++ Fix the multi-line copying and pasting - https://discord.com/channels/661732390355337246/1100701456950099978/1103153377237540874
++ Create global config always
++ Case-sensitive / whole word search:
+    + Make the icons nice
+    + Tooltips and hover
+    + No global search flags
+    + Compile-time flags
 + Reset max line pixel width
 + Fix command execution via the popup
 + Project dir disambiguation

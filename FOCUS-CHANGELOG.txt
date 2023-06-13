@@ -3,12 +3,10 @@
 - Line wrap
 - Optional line numbers
 - Config files for directories (i.e. adding a .focus-config file to your directory and have Focus load it)
-- Config option to limit the width of an editor
 - Global search improvements (the ability to filter additionally by filename)
 - Backup unsaved changes
 - Highlight other languages
 - Improve smooth scrolling for fancy mice
-- Undo/redo for UI
 - Identifier search
 - A little bit of semantic highlighting for Jai
 - Settings per file type
@@ -28,7 +26,24 @@
 
 # Version 0.1.11 (UNRELEASED)
 
-+ ...
++ Linux: The "Open Projects Directory" command as well as shift-clicking files/directories in the "open file" dialogs (Ctrl+O, Ctrl+Shift+O, Ctrl+P) should now work.
+  By default the editor will try to auto-detect the prefered file manager using the XDG utilities.
+  In case the auto-detection fails you can manually set the commands to run via the "explorer_command" and "explorer_reveal_command" options in the "[[linux]]" section of the config file.
+  Example:
+
+    [[linux]]
+    # '%s' is replaced with the path of the file/directory to open
+    explorer_command:         konsole -e mc "%s"      # this command is used when opening a directory
+    explorer_reveal_command:  nautilus --select "%s"  # this command is used when highlighting a specific file in a directory
+
++ Mac: Focus no longer collects window events when another window is active. This eliminates several bugs (Cmd+Tab spawning cursors, I-Beam cursor when using other apps) at the cost of no longer being able to vertically scroll unless Focus is active. For now.
++ `copy` will now copy whole lines to clipboard if the config option `copy_whole_line_without_selection` is enabled in config
++ Fixed a bug with the Navigate to file dialog being empty
++ Added #ifdef/#ifndef highlighting to C/C++
++ Added #compile_time/#no_debug highlighting to Jai
++ Multi-cursor line cuts will no longer include extra newlines
++ Added a notification about match case or match whole word toggles active when no search results found
++ BREAKING: default config is no longer used as a fallback for missing keymaps, so anything you haven't listed explicitly in the global config won't be included
 
 
 # Version 0.1.10

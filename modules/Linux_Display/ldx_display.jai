@@ -182,6 +182,14 @@ x11_toggle_fullscreen :: (x11_win: *X11Window, desire_fullscreen: bool, saved: *
 x11_create_window :: (x11_display: *X11Display, ld_win: LDWindow, width: int, height: int, window_name: string,
     window_x: int, window_y: int, x11_parent: *X11Window, background_color_rgb: [3]float) -> bool
 {
+    to_u16 :: (f: float) -> u16 {
+        u := cast(s32)(f * 65535);
+        if u < 0      u = 0;
+        if u > 65535  u = 65535;
+
+        return cast(u16) u;
+    }
+
     d := x11_display.handle;
 
     XLockDisplay(d);
@@ -233,28 +241,17 @@ x11_create_window :: (x11_display: *X11Display, ld_win: LDWindow, width: int, he
         cast(u64) (CWColormap | CWEventMask),
         *swa);
 
-    to_u16 :: (f: float) -> u16 {
-        u := cast(s32)(f * 65535);
-        if u < 0      u = 0;
-        if u > 65535  u = 65535;
-
-        return cast(u16) u;
-    }
-
     win_name := temp_c_string(window_name);
     if window_name then XStoreName(d, win, win_name);
 
     class_hints := XAllocClassHint();
     if class_hints {
-        // this changes the application name for now (not the window title)
-        // unset, gnome3 will just display "Unknown" in the activity bar and the dock
         if window_name {
             class_hints.res_name = win_name;
-            class_hints.res_class = win_name;
         } else {
             class_hints.res_name = "jai-application";
-            class_hints.res_class = "JAI-Application";
         }
+        class_hints.res_class = temp_c_string(global_app_id);
         XSetClassHint(d, win, class_hints);
     }
 
@@ -278,6 +275,24 @@ x11_create_window :: (x11_display: *X11Display, ld_win: LDWindow, width: int, he
         ic = ic,
     });
     return true;
+}
+
+x11_set_icon_from_raw_data :: (win: X11Window, data: *u8, width: u32, height: u32) {
+    dpy := win.display.handle;
+    w := win.handle;
+
+    icon_pixmap := XCreatePixmap(dpy, w, width, height, 32);
+    gc := XCreateGC(dpy, icon_pixmap, 0, null);
+    icon_image := XCreateImage(dpy, XDefaultVisual(dpy, DefaultScreen(dpy)), 32, ZPixmap, 0, data, width, height, 32, 0);
+    XPutImage(dpy, icon_pixmap, gc, icon_image, 0, 0, 0, 0, width, height);
+    XFreeGC(dpy, gc);
+    // XDestroyImage(icon_image);
+
+    hints := XAllocWMHints();
+    hints.flags = IconPixmapHint;
+    hints.icon_pixmap = icon_pixmap;
+    XSetWMHints(dpy, w, hints);
+    XFree(hints);
 }
 
 x11_set_cursor_from_theme :: (win: *X11Window, name: string) {

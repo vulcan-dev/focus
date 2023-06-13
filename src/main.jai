@@ -1,3 +1,5 @@
+DEBUG_FILE_REFRESH :: true;
+
 main :: () {
     cpu_info = get_cpu_info();
 
@@ -21,7 +23,7 @@ main :: () {
     if !projects_dir_existed then write_entire_file(tprint("%/Example Project.focus-config", projects_dir), EXAMPLE_PROJECT_FILE_DATA);
 
     init_file_watcher();
-    load_global_config(create_if_doesnt_exist = !DEBUG);  // don’t create global config in debug mode because it’s annoying if we want to test changes to the default config
+    load_global_config();
     init_workspace();
     init_buffers();
 
@@ -29,7 +31,6 @@ main :: () {
 
     window_generic_title = ifx DEBUG then "Focus (debug mode)" else "Focus";
     platform_create_window();
-    if config.settings.maximize_on_start then platform_maximize_window(window);
 
     init_session_with_no_guidance :: () #expand {
         session = maybe_load_previous_session();
@@ -128,6 +129,15 @@ main :: () {
         screen_with_title_bar.h += 200;  // should be enough to include the title bar
 
         #if OS != .WINDOWS {
+            #if OS == .MACOS {
+                if !Input.input_application_has_focus {
+                    // Avoid changing the cursor when the window is not in Focus.
+                    // This also fixes the Cmd+Tab cursor-spawning issue where the window still thinks Cmd is held down.
+                    sleep_milliseconds(1);
+                    continue;
+                }
+            }
+
             // Try to avoid hot-looping on Linux/macOS
             if !redraw_requested && !Input.events_this_frame.count && !mouse.moved_this_frame {
                 sleep_milliseconds(1);
@@ -642,7 +652,7 @@ just_dropped_file := "";
 
 cpu_info: Cpu_X86;
 
-// This will be set to `true` in `maybe_refresh_config()` to signal that the
+// This will be set to `true` in `refresh_config()` to signal that the
 // next window resize event should be handled even if the window doesn't actually
 // change size. This is needed when changing DPI/scaling options which require
 // a full repaint.

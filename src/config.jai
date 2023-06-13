@@ -1,13 +1,13 @@
-load_global_config :: (create_if_doesnt_exist := false) -> success: bool, changed: bool, there_were_warnings: bool {
+load_global_config :: () -> success: bool, changed: bool, there_were_warnings: bool {
     global_config_path = sprint("%/global.focus-config", config_dir);
 
-    if create_if_doesnt_exist && !file_exists(global_config_path) {
+    if !file_exists(global_config_path) {
         // Create one with default contents
         success := write_entire_file(global_config_path, DEFAULT_CONFIG_FILE_DATA);
         if !success panic_messagebox("Couldn't create a new config file '%'.\nIs the directory writable?", global_config_path);
     }
 
-    success, changed, there_were_warnings := load_and_merge_config(global_config_path, hash = *global_config_hash);
+    success, changed, there_were_warnings := load_and_merge_config(global_config_path, into = Config.{}, hash = *global_config_hash);
 
     return success, changed, there_were_warnings;
 }
@@ -29,9 +29,7 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
     return success, changed, there_were_warnings;
 }
 
-maybe_refresh_config :: (path: string) {
-    if !is_our_config_file(path) return;
-
+refresh_config :: (path: string) {
     old_workspace_dirs := array_copy_tmp(config.workspace.workspace_dirs);
 
     if path == global_config_path {
@@ -52,21 +50,22 @@ maybe_refresh_config :: (path: string) {
             clear_user_messages();
             add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), dismiss_in_seconds = 3);
         }
+    } else {
+        log_error("Attempted to refresh config from file %, but it is not a global config or a current project config", path);
+        return;
     }
 
     // Detect changes in workspace dirs
-    dirs_added: [..] string;
-    dirs_added.allocator = temp;
-    dirs_removed: [..] string;
-    dirs_removed.allocator = temp;
+    dirs_added   := false;
+    dirs_removed := false;
 
     for new_dir : config.workspace.workspace_dirs {
         exists := array_find(old_workspace_dirs, new_dir);
-        if !exists array_add(*dirs_added, new_dir);
+        if !exists { dirs_added = true; break; }
     }
     for old_dir : old_workspace_dirs {
         exists := array_find(config.workspace.workspace_dirs, old_dir);
-        if !exists array_add(*dirs_removed, old_dir);
+        if !exists { dirs_removed = true; break; }
     }
 
     if dirs_added || dirs_removed {
@@ -135,7 +134,7 @@ find_font_by_name :: (name: string) -> path: string, error_msg: string /* temp *
 
 #scope_file
 
-load_and_merge_config :: (file_path: string, into: Config = DEFAULT_CONFIG, hash: *u64) -> success: bool, changed: bool, there_were_warnings: bool {
+load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> success: bool, changed: bool, there_were_warnings: bool {
     new_config, success, changed, error_msg, warnings := load_config(file_path, hash);
     if !success {
         if !error_msg assert(false, "No error message on a config error. This is a bug.");
@@ -253,7 +252,7 @@ merge_configs :: (dst: *Config, src: Config) {
     CODE_COLOR_MAP = refresh_code_color_map();
 
     // Platform config
-    dst.platform = src.platform;
+    platform_copy_config(*src.platform, *dst.platform);
 }
 
 load_font_by_name :: (name: string) -> font_data: string, success: bool {
@@ -276,14 +275,14 @@ project_config_path: string;
 project_config_hash: u64;
 current_project_name: string;
 
-config: Config = DEFAULT_CONFIG;
+config: Config;
 
 Config :: struct {
     workspace: Workspace;
-    keymap: Keymap;
-    settings: Settings;
-    style: Style;
-    platform: platform_config;
+    keymap:    Keymap;
+    settings:  Settings;
+    style:     Style;
+    platform:  Platform_Config;
 }
 
 Workspace :: struct {
@@ -296,9 +295,7 @@ Workspace :: struct {
 }
 
 Settings :: struct {
-    // NOTE: for various reasons this must match the settings in default.focus-config.
-    // Otherwise there will be confusion
-    maximize_on_start                   := true;
+    maximize_on_start                   := false;
     open_on_the_biggest_monitor         := true;
     cursor_as_block                     := true;
     highlight_selection_occurrences     := true;
@@ -313,6 +310,7 @@ Settings :: struct {
     line_height_scale_percent           := 120;
     max_editor_width                    := -1;
     can_cancel_go_to_line               := true;
+    copy_whole_line_without_selection   := false;
     editor_history_size                 := 128;
     scroll_to_cursor_line_offset        := 1;
 
@@ -373,7 +371,7 @@ Color_Values :: struct {
     LIST_CURSOR             := Color.{ r = 0.20, g = 0.80, b = 0.80, a = 0.3 };
     SHADOW_DARK             := Color.{ r = 0.057, g = 0.089, b = 0.11, a = 0.5 };
     SHADOW_TRANSPARENT      := Color.{ r = 0.057, g = 0.089, b = 0.11, a = 0 };  // for interpolation
-    TEXT_INPUT_LABEL     := Color.{ r = 0.233, g = 0.269, b = 0.316, a = 1.0 };
+    TEXT_INPUT_LABEL        := Color.{ r = 0.233, g = 0.269, b = 0.316, a = 1.0 };
 
     UI_DEFAULT              := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     UI_DIM                  := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };
@@ -467,6 +465,7 @@ SETTINGS :: Setting.[
     .{ "strip_trailing_whitespace_on_save",   .boolean },
     .{ "smooth_scrolling",                    .boolean },
     .{ "can_cancel_go_to_line",               .boolean },
+    .{ "copy_whole_line_without_selection",   .boolean },
 
     .{ "max_entries_in_open_file_dialog",     .integer },
     .{ "tab_size",                            .integer },
