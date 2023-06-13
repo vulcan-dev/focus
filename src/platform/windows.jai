@@ -30,7 +30,7 @@ platform_get_centered_window_dimensions :: (open_on_biggest: bool) -> s32, s32, 
     if !EnumDisplayMonitors(null, null, monitor_enum_proc, 0) then panic("Couldn't enumerate monitors");
     assert(monitors.count > 0, "Unexpectedly no monitors found. This is a bug.");
 
-    monitor := monitors[0];
+    monitor := monitors[1]; // @TODO open on current monitor by default
 
     if open_on_biggest {
         max_area := 0;
@@ -48,8 +48,8 @@ platform_get_centered_window_dimensions :: (open_on_biggest: bool) -> s32, s32, 
     monitor_width  := monitor.right  - monitor.left;
     monitor_height := monitor.bottom - monitor.top;
 
-    w := cast(s32) (monitor_width  / 1.5);
-    h := cast(s32) (monitor_height / 1.5);
+    w := cast(s32) (monitor_width  / 1.75);
+    h := cast(s32) (monitor_height / 1.75);
     x := cast(s32) (monitor.left + monitor_width  / 2 - w / 2);
     y := cast(s32) (monitor.top  + monitor_height / 2 - h / 2);
 

@@ -1,3 +1,12 @@
+# Mine
+
+- [x] center on cursor
+- [x] cursor history
+- [ ] eye
+- [x] multicursor
+- [.] default monitor
+
+
 # TODO
 
 - Config migration
