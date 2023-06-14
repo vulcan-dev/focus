@@ -492,6 +492,7 @@ Token :: struct {
         modifier_keyword;
         keyword;
         type_keyword;
+        jump_keyword;
         value_keyword;
         compiler_directive;
         invalid;
@@ -512,8 +513,9 @@ COLOR_MAP :: Code_Color.[
     .KEYWORD,       // keyword
     .KEYWORD,       // modifier_keyword
     .TYPE,          // type_keyword
+    .JUMP_KEYWORD,  // jump_keyword
     .VALUE_KEYWORD, // value_keyword
-    .KEYWORD,       // compiler_directive
+    .DIRECTIVE,     // compiler_directive
     .ERROR,         // invalid
 ];
 
@@ -531,9 +533,13 @@ OPERATIONS :: string.[
 ];
 
 KEYWORDS :: string.[
-    "align_of", "break", "case", "cast", "code_of", "continue", "defer", "else", "enum", "enum_flags", "for",
-    "if", "ifx", "is_constant", "inline", "push_context", "return", "size_of", "struct", "then", "type_info", "type_of",
+    "align_of", "case", "cast", "code_of", "else", "enum", "enum_flags", "for",
+    "if", "ifx", "is_constant", "inline", "push_context", "size_of", "struct", "then", "type_info", "type_of",
     "union", "using", "while", "xx", "operator", "remove",
+];
+
+JUMP_KEYWORDS :: string.[
+    "break", "continue", "defer", "return",
 ];
 
 TYPE_KEYWORDS :: string.[
@@ -580,7 +586,7 @@ MODIFIERS :: string.[
 
     define_enum(*b, "Punctuation",        "",           .[PUNCTUATION]);
     define_enum(*b, "Operation",          "",           .[OPERATIONS]);
-    define_enum(*b, "Keyword",            "kw_",        .[KEYWORDS, TYPE_KEYWORDS, VALUE_KEYWORDS]);
+    define_enum(*b, "Keyword",            "kw_",        .[KEYWORDS, TYPE_KEYWORDS, JUMP_KEYWORDS, VALUE_KEYWORDS]);
     define_enum(*b, "Compiler_Directive", "directive_", .[COMPILER_DIRECTIVES]);
 
     return builder_to_string(*b);
@@ -593,13 +599,14 @@ Keyword_Token :: struct {
 
 KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
     table: Table(string, Keyword_Token);
-    size := 2 * (KEYWORDS.count + TYPE_KEYWORDS.count + VALUE_KEYWORDS.count);
+    size := 2 * (KEYWORDS.count + TYPE_KEYWORDS.count + JUMP_KEYWORDS.count + VALUE_KEYWORDS.count);
     init(*table, size);
 
     #insert -> string {
         b: String_Builder;
         for KEYWORDS        append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .keyword,       keyword = .kw_% });\n", it, it));
         for TYPE_KEYWORDS   append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .type_keyword,  keyword = .kw_% });\n", it, it));
+        for JUMP_KEYWORDS   append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .jump_keyword,  keyword = .kw_% });\n", it, it));
         for VALUE_KEYWORDS  append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .value_keyword, keyword = .kw_% });\n", it, it));
         return builder_to_string(*b);
     }

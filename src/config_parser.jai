@@ -148,6 +148,8 @@ map_color_name_to_color_struct :: (color_name: string) -> *Color, found: bool {
         case "code_highlight";                  color = *Colors.CODE_HIGHLIGHT;
         case "code_error";                      color = *Colors.CODE_ERROR;
         case "code_keyword";                    color = *Colors.CODE_KEYWORD;
+        case "code_jump";                       color = *Colors.CODE_JUMP;
+        case "code_directive";                  color = *Colors.CODE_DIRECTIVE;
 
         case; return xx 0, false;
     }
@@ -404,7 +406,7 @@ hex_to_color :: (src_hex: string) -> Color, success: bool {
             if #char "A" <= char && char <= #char "F" return 10 + char - #char "A";
             return -1;
         }
-        
+
         d1, d0 := cast(float)hex_digit_to_int(byte_str[0]), cast(float) hex_digit_to_int(byte_str[1]);
         if d1 < 0 || d0 < 0 return -1;
 

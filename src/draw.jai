@@ -46,6 +46,13 @@ draw_frame :: () {
                 just_dropped_file = "";
             }
 
+            if eye_tracking_active && should_jump_to_eye_tracker >= 0 {
+                if point_within(calibrated_eye_position, left_rect)
+                    should_jump_to_eye_tracker = editors.left;
+                else
+                    should_jump_to_eye_tracker = editors.right;
+            }
+
             draw_editor(editors.left,  left_rect,  footer_height, .editor_left,  screen);
             draw_editor(editors.right, right_rect, footer_height, .editor_right, screen);
 
@@ -317,15 +324,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         mouse_pos.y = rect.h - mouse_pos.y + viewport.top - ifx dpi_scale > 1.0 then 1 else 0;
         coords := Coords.{ line = xx (mouse_pos.y / line_height), col = xx ((mouse_pos.x / char_x_advance) + 0.5) };
 
-        cursors_stop_blinking();
-
-        cursor := leave_only_original_cursor(editor);
-        cursor.pos = coords_to_offset(buffer, coords);
-        cursor.col_wanted = -1;
-        cursor_moved = .jumped;
-        cursor.sel = cursor.pos;
-
-        organise_cursors(editor, *selection_mode);
+        jump_to_closest_line(editor, buffer, coords, true);
     }
 
     if ui.active == ui_id && (mouse.left.just_pressed || mouse.left.is_dragging) {

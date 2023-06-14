@@ -3,15 +3,19 @@
 - [x] center on cursor
 - [x] cursor history
 - [.] eye
-    - [ ] check for line length
-    - [ ] jump to looked-at editor, not active editor
+    - [x] check for line length
+    - [x] jump to looked-at editor, not active editor
     - [ ] add indicator that eye tracking is lost
 - [x] multicursor
 - [.] default monitor
 - [ ] lexing/parsing
-- [ ] return/break/continue
-- [ ] theme
-
+- [x] return/break/continue
+- [.] theme
+- [ ] autoindent
+- [ ] autobraceclose
+- [.] ctrl-tab go to previous file
+    - [ ] fix bug (double pane?)
+- [ ] add MD icons
 
 # TODO
 

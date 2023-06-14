@@ -177,6 +177,7 @@ commands := #run Command.[
     .{ .remove_additional_cursors,                          "Remove Additional Cursors",          0, .Single },
     .{ .move_to_previous_editor_history,                    "Move To Previous Cursor Position",   0, .Single },
     .{ .move_to_next_editor_history,                        "Move To Next Cursor Position",       0, .Single },
+    .{ .move_to_previous_file,                              "Move To Previous File",              0, .Single },
 
     .{ .new_line_below_without_breaking,                    "New Line Below Without Breaking",    0, .Single },
     .{ .new_line_above_without_breaking,                    "New Line Above Without Breaking",    0, .Single },
