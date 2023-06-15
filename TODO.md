@@ -1,21 +1,26 @@
 # Mine
 
-- [x] center on cursor
-- [x] cursor history
 - [.] eye
     - [x] check for line length
     - [x] jump to looked-at editor, not active editor
     - [ ] add indicator that eye tracking is lost
-- [x] multicursor
 - [.] default monitor
+    - [ ] restore previous window on startup
 - [ ] lexing/parsing
-- [x] return/break/continue
 - [.] theme
 - [ ] autoindent
 - [ ] autobraceclose
-- [.] ctrl-tab go to previous file
-    - [ ] fix bug (double pane?)
 - [ ] add MD icons
+- [ ] search: order declaration first
+- [ ] stupid goto definition
+- [ ] go to matching brace
+
+
+- [x] ctrl-tab go to previous file
+- [x] return/break/continue
+- [x] multicursor
+- [x] center on cursor
+- [x] cursor history
 
 # TODO
 

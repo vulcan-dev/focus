@@ -213,6 +213,13 @@ main :: () {
                         if event.key_pressed then last_press = frame_time;
                     }
 
+                    // Buffer switcher
+                    if event.key_code == .CTRL {
+                        if buffer_switcher_hot && !event.key_pressed
+                            finalize_buffer_switch();
+                        buffer_switcher_hot = event.key_pressed != 0;
+                    }
+
                 case .MOUSE_WHEEL;
                     #if OS != .MACOS {
                         if ctrl_or_cmd_pressed() {

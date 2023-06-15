@@ -196,6 +196,9 @@ align_to_grid :: (rect: Rect) -> Rect {
 Rect :: struct {
     x, y : float;
     w, h : float;
+    #place x;
+    xy : Vector2;
+    wh : Vector2;
 }
 
 operator == :: (r1: Rect, r2: Rect) -> bool {

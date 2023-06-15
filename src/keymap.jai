@@ -368,7 +368,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "create_new_file",
     "create_new_file_on_the_side",
     "move_to_previous_editor_history",
-    "move_to_previous_file",
+    "move_to_previous_buffer",
+    "move_to_next_buffer",
     "move_to_next_editor_history",
 ]);
 

@@ -170,7 +170,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .create_cursors_around;            create_cursors_around               (editor, buffer); keep_selection = true;
         case .move_to_previous_editor_history;  move_to_previous_editor_history     ();
         case .move_to_next_editor_history;      move_to_next_editor_history         ();
-        case .move_to_previous_file;            move_to_previous_file               ();
+        case .move_to_previous_buffer;          move_to_previous_buffer             ();
+        case .move_to_next_buffer;              move_to_next_buffer                 ();
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
@@ -1097,11 +1098,15 @@ make_editor_active :: (editor_id: s64) {
 
     assert(editor_id < open_editors.count, "Trying to activate editor %, but the last available one is %", editor_id, open_editors.count - 1);
 
-    if editors.active < 0 || open_editors[editor_id].buffer_id != open_editors[editors.active].buffer_id
-        editors.different_buffer = editors.active;
-
     editors.active = editor_id;
-    update_window_title(open_editors[editor_id].buffer_id);
+    buffer_id := open_editors[editor_id].buffer_id;
+    update_window_title(buffer_id);
+    touch_buffer(editor_id, buffer_id);
+}
+
+make_buffer_active :: (buffer_id: s64) {
+    editor_id, ok := table_find(*latest_editor_for_buffer, buffer_id);
+    if ok  make_editor_active(editor_id);
 }
 
 update_window_title :: (buffer_id: s64 = -1) {
@@ -2584,7 +2589,6 @@ Editor_State :: struct {
     active: s64 = -1;
     left:   s64 = -1;
     right:  s64 = -1;
-    different_buffer: s64 = -1; // last active editor which had a different buffer to the current active editor
 
     expanded := false;  // whether the active editor should be larger
     closing  := false;  // whether the active editor is currently being closed (so that we can change the layout when it's done closing)
@@ -2607,6 +2611,11 @@ Editor_Placement :: enum {
 open_buffers: Simple_Bucket_Array(Buffer, items_per_bucket = 1024, max_buckets = 1024);  // 8 Kb for pointer array, ~1 million buffers is the maximum
 open_editors: [..] Editor;
 buffers_table: Table(string, s64);  // a map from full buffer path to buffer id (only for the open buffers, obviously)
+
+buffer_order: [..] s64;
+latest_editor_for_buffer: Table(s64, s64);
+buffer_switcher_hot := false;
+buffer_switcher_index := -1;
 
 open_buffers_lock: Mutex;  // must hold while adding a new buffer
 
@@ -2799,8 +2808,44 @@ move_to_editor_history_frame :: (frame: Editor_History_Frame) {
     editor.scroll_to_cursor = .yes;
 }
 
-move_to_previous_file :: () {
-    make_editor_active(editors.different_buffer);
+move_to_previous_buffer :: () {
+    if buffer_order.count <= 1  return;
+
+    if buffer_switcher_hot {
+        if buffer_switcher_index < 0
+            buffer_switcher_index = buffer_order.count - 2;
+        else if buffer_switcher_index > 0
+            buffer_switcher_index -= 1;
+    }
+    else {
+        make_buffer_active(buffer_order[buffer_order.count - 2]);
+    }
+}
+
+move_to_next_buffer :: () {
+    if buffer_order.count <= 1  return;
+
+    if buffer_switcher_hot {
+        buffer_switcher_index += 1;
+        if buffer_switcher_index >= buffer_order.count - 1
+            buffer_switcher_index = buffer_order.count - 1;
+    }
+    else {
+        make_buffer_active(buffer_order[buffer_order.count - 2]);
+    }
+}
+
+touch_buffer :: (editor_id: s64, buffer_id: s64) {
+    array_ordered_remove_by_value(*buffer_order, buffer_id);
+    array_add(*buffer_order, buffer_id);
+    table_set(*latest_editor_for_buffer, buffer_id, editor_id);
+}
+
+finalize_buffer_switch :: () {
+    if buffer_switcher_index >= 0 {
+        make_buffer_active(buffer_order[buffer_switcher_index]);
+        buffer_switcher_index = -1;
+    }
 }
 
 #scope_file

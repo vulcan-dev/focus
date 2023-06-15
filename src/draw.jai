@@ -73,6 +73,9 @@ draw_frame :: () {
 
     draw_user_messages(screen, footer_height);
 
+    if buffer_switcher_hot && buffer_switcher_index >= 0
+        draw_buffer_switcher_dialog();
+
     if eye_tracking_active && eye_tracking_hot {
         size :: 2.0;
         rect := Rect.{x=calibrated_eye_position.x-size, y=calibrated_eye_position.y-size, w=size*2, h=size*2};
@@ -2249,6 +2252,33 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     };
     Simp.draw_prepared_text(font_ui, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
     draw_text_input(*go_to_line_dialog.input, input_rect, ui_id = input_id, active = true, label = " line number");
+}
+
+draw_buffer_switcher_dialog :: () {
+    margin  := floor(4 * dpi_scale);
+    padding := floor(4 * dpi_scale);
+
+    width  := screen.w - margin * 2;
+    height := font_ui_line_height + 2 * (padding + 1);
+
+    box_rect := cut_top(screen, height);
+    box_rect = cut_right(box_rect, width);
+
+    box_rect = make_rect(margin, screen.h - margin - height, width, height);
+    if !is_valid(box_rect) return;
+
+    draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
+
+    push_scissor(box_rect);
+    defer pop_scissor();
+
+    pen := box_rect.xy;
+    pen.x += padding;
+    pen.y += padding * 2.5;
+
+    buffer_id := buffer_order[buffer_switcher_index];
+    buffer := *open_buffers[buffer_id];
+    width, pen = draw_file_info(buffer, 0, padding, pen, draw_crlf_warning = true, draw_config_warning = true);
 }
 
 get_cursor_screen_pos :: (text_origin: Vector2, coords: Coords) -> Vector2 {
