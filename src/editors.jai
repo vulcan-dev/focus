@@ -1106,7 +1106,13 @@ make_editor_active :: (editor_id: s64) {
 
 make_buffer_active :: (buffer_id: s64) {
     editor_id, ok := table_find(*latest_editor_for_buffer, buffer_id);
-    if ok  make_editor_active(editor_id);
+    if !ok return;
+
+    if editors.active == editors.left
+        editors.left = editor_id;
+    else if editors.active == editors.right
+        editors.right = editor_id;
+    make_editor_active(editor_id);
 }
 
 update_window_title :: (buffer_id: s64 = -1) {
@@ -1691,14 +1697,39 @@ move_to_file_end :: (editor: *Editor, buffer: Buffer) {
     editor.cursor_moved = .jumped;
 }
 
+is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64, at_end_of_line: bool) -> bool {
+    if first_token_pos >= cursor_pos  return false;
+
+    if buffer.lang == {
+        case .Jai;    return jai_is_keyword_which_can_braceless_indent(buffer,    first_token_pos, cursor_pos, at_end_of_line);
+        case .C;      return c_is_keyword_which_can_braceless_indent(buffer,      first_token_pos, cursor_pos, at_end_of_line);
+        case .CSharp; return csharp_is_keyword_which_can_braceless_indent(buffer, first_token_pos, cursor_pos, at_end_of_line);
+    }
+
+    return false;
+}
+
+is_lang_which_likes_to_indent :: (buffer: *Buffer) -> bool {
+    return buffer.lang == .Jai || buffer.lang == .C || buffer.lang == .CSharp;
+}
+
 break_line :: (editor: *Editor, buffer: *Buffer) {
     // Remember by how much we need to indent the new lines upfront to avoid any scanning of the dirty buffer later
     Space :: struct { start: s32; count: s32; original_start: s32; }  // not a string to avoid invalid pointers
     space_per_cursor := NewArray(editor.cursors.count, Space, initialized = false, allocator = temp);
+    indent_per_cursor := NewArray(editor.cursors.count, bool, initialized = false, allocator = temp);
     for cursor : editor.cursors {
         selection := get_selection(cursor);
         start := get_line_start_offset(buffer, offset_to_line(buffer, selection.start));
         whitespace_bytes := count_whitespace(buffer.bytes, start, selection.start);
+        wants_indent := false;
+        if is_lang_which_likes_to_indent(buffer) && cursor.pos > 0 && cursor.pos > start {
+            prev_char := buffer.bytes[cursor.pos - 1];
+            wants_indent = prev_char == #char "{";
+            if !wants_indent && prev_char != #char ";"
+                wants_indent = is_keyword_which_can_braceless_indent(buffer, start + whitespace_bytes, cursor.pos, false);
+        }
+        indent_per_cursor[it_index] = wants_indent;
         space_per_cursor[it_index] = .{ start = start, count = whitespace_bytes, original_start = start };
     }
 
@@ -1708,7 +1739,7 @@ break_line :: (editor: *Editor, buffer: *Buffer) {
         prev_space := space_per_cursor[max(it_index-1, 0)];
         if space.original_start == prev_space.original_start then space.start = prev_space.start; else space.start += xx offset_delta;  // handle cursors on the same line well
         space_str := to_string(array_view(buffer.bytes, space.start, space.count));
-        insert_str := tprint("\n%", space_str);
+        insert_str := tprint("\n%1%2", space_str, ifx indent_per_cursor[it_index] then (ifx config.settings.insert_spaces_when_pressing_tab get_tmp_spaces(TAB_SIZE) else "\t") else "");
 
         cursor.pos += xx offset_delta;
         cursor.sel += xx offset_delta;
@@ -1723,6 +1754,7 @@ break_line :: (editor: *Editor, buffer: *Buffer) {
         }
         cursor.pos = selection.start + xx insert_str.count;
         cursor.col_wanted = -1;
+
     }
 
     editor.cursor_moved = .unimportant;
@@ -1976,6 +2008,7 @@ get_line_starts_for_lines_with_cursors_tmp :: (editor: *Editor, buffer: *Buffer)
 
     return line_starts, last_line_end_offset;
 }
+
 
 indent_lines :: (editor: *Editor, buffer: *Buffer) {
     spaces   := ifx config.settings.insert_spaces_when_pressing_tab get_tmp_spaces(TAB_SIZE) else "\t";
@@ -2547,7 +2580,7 @@ Search_Bar :: struct {
     results: [..] Text_Highlight;
     selected_result: s64 = -1;
     search_point_offset: s32;  // the point used to determine the next search result. Fixed so that we can set cursor without jumping around
-    case_sensitive: bool;
+    case_sensitive := true;
     whole_word: bool;
 
     original_cursor_position: Cursor.State;  // remember main cursor position so we can go back to it on Esc

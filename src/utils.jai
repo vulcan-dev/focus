@@ -40,6 +40,12 @@ array_copy_tmp :: (array: [] $T) -> [] T {
     return dest;
 }
 
+array_count_starts_with :: (array: []string, needle: string) -> int {
+    count := 0;
+    for array  if starts_with(it, needle)  count += 1;
+    return count;
+}
+
 to_bytes :: (src: string) -> [] u8 {
     result: [] u8;
     result.data = src.data;

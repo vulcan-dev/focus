@@ -22,6 +22,16 @@ highlight_csharp_syntax :: (using buffer: *Buffer) {
     }
 }
 
+csharp_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64, at_end_of_line: bool) -> bool {
+    i := first_token_pos;
+    if buffer.colors[i] != xx Code_Color.KEYWORD  return false;
+
+    length := cursor_pos - i;
+    return length > 2 && buffer.bytes[i] == #char "i" && buffer.bytes[i+1] == #char "f" && buffer.bytes[i+2] != #char "x" // if
+        || length > 3 && buffer.bytes[i] == #char "f" // for
+        || length > 5 && buffer.bytes[i] == #char "w"; // while
+}
+
 #scope_file
 
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {

@@ -350,7 +350,7 @@ Finder :: struct {
     needle: string;  // to remember what search string the results below correspond to
     results: [..] Search_Result;
 
-    case_sensitive: bool;
+    case_sensitive := true;
     whole_word: bool;
 
     selected: s64;

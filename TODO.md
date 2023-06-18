@@ -14,7 +14,7 @@
 - [ ] search: order declaration first
 - [ ] stupid goto definition
 - [ ] go to matching brace
-
+- [ ] dedent on }
 
 - [x] ctrl-tab go to previous file
 - [x] return/break/continue
