@@ -25,6 +25,8 @@
 # TODO
 
 - Config migration
+    + Verify that settings merging works ok
+    - ...
 
 - Line wrap:
     - Have line_starts for editor
@@ -45,10 +47,9 @@
 
 - A config option to disable subpixel font rendering
 
-- Improve multi-cursor behaviour:
-    - When undoing/redoing, don't trash the clipboard unless the number of cursors change?
-    - Or maybe detect clipboard changes in undos and only reset after that?
-    - Think about it some more
+- Review the editor history implementation:
+    - It's confusing to have the last state to persist randomly
+    - When a new file is open, it doesn't replace itself as the most recent state?
 
 - Improve the scoring for fuzzy search (maybe after the fact even) - score matches closer together higher
     - When a capital letter is present, score matching case higher?
@@ -74,11 +75,6 @@
         - https://ark-vcs.com/images/client_new.png
 
     bugs:
-        - switching to tab_size 4 doesn't update the tabs, repro:
-            - switch tab_size in the project config to 3 (it updated)
-            - switch back to 4 (it didn't)
-            - switch to 5 (it updated)
-            - switch back to 4 (it didn't)
         - after switching back to project, ctrl+p wouldn't show all files, repro:
             - open UE project, do ctrl+p to see all files
             - switch to the other project, did ctrl+p there

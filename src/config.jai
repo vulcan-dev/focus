@@ -8,6 +8,7 @@ load_global_config :: () -> success: bool, changed: bool, there_were_warnings: b
     }
 
     success, changed, there_were_warnings := load_and_merge_config(global_config_path, into = Config.{}, hash = *global_config_hash);
+    if success then saved_global_config = config;
 
     return success, changed, there_were_warnings;
 }
@@ -20,7 +21,7 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
     project_name := ifx project then project else current_project_name;
     config_path  := sprint("%/%.focus-config", projects_dir, project_name);
 
-    success, changed, there_were_warnings := load_and_merge_config(config_path, into = config, hash = *project_config_hash);
+    success, changed, there_were_warnings := load_and_merge_config(config_path, into = saved_global_config, hash = *project_config_hash);
     if success {
         current_project_name = project_name;
         project_config_path  = config_path;
@@ -135,8 +136,18 @@ find_font_by_name :: (name: string) -> path: string, error_msg: string /* temp *
 #scope_file
 
 load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> success: bool, changed: bool, there_were_warnings: bool {
-    new_config, success, changed, error_msg, warnings := load_config(file_path, hash);
-    if !success {
+
+    file_data, success_read := read_entire_file(file_path);
+    // NOTE: we're not freeing because the config will take ownership of it (and if you reload it'll leak the old data, which we should probably fix at some point)
+    if !success_read {
+        error_msg := tprint("Couldn't read the config file file '%'", file_path);
+        log_error(error_msg);
+        add_user_error(error_msg);
+        return false, false, false;
+    }
+
+    parsed_config, success_parse, error_msg, warnings := parse_config(file_path, file_path, file_data);
+    if !success_parse {
         if !error_msg assert(false, "No error message on a config error. This is a bug.");
         log_error(error_msg);
         add_user_error(error_msg);
@@ -147,112 +158,96 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> succes
         for warnings add_user_error(it, dismiss_in_seconds = 60);
     }
 
-    config = into;
-    merge_configs(*config, new_config);
+    // Maybe update hash if changed
+    new_hash := calculate_meow_hash(file_data);
+    changed := new_hash != <<hash;
+    if changed then <<hash = new_hash;
 
-    TAB_SIZE = clamp(cast(s32) config.settings.tab_size, 1, 100);  // be reasonable, even though 100 is unreasonable
+    // Merge configs
+    config = into;
+    merge_configs(*config, parsed_config);
+
+    // Apply colors
+    Colors = config.colors;
+    CODE_COLOR_MAP = refresh_code_color_map();
+
+    // Make sure the values are within the acceptable range
+    TAB_SIZE = clamp(cast(s32) config.settings.tab_size, 1, 100);  // be reasonable (though 100 is unreasonable)
+    config.settings.line_height_scale_percent = clamp(config.settings.line_height_scale_percent, 50, 1000);
+
+    // Must do after the validation
+    init_fonts_and_dependent_things();
 
     if !file_is_watched(file_path) start_watching_file(file_path);
 
     return true, changed, warnings.count > 0;
 }
 
-// NOTE: I don't like how the config is currently loaded, passing stuff from function to function,
-//       this code should probably be simplified at some point
-load_config :: (file_path: string, hash: *u64) -> Config, success: bool, changed: bool, error_msg: string /* tmp */, warnings: [] string /* temp */ {
-    empty: Config;
+merge_configs :: (dst: *Config, parsed: Parsed_Config) {
+    // Completely replace the workspace subsections if present
+    if parsed.workspace_dirs then dst.workspace.workspace_dirs = parsed.workspace_dirs;
+    if parsed.ignore_dirs    then dst.workspace.ignore_dirs    = parsed.ignore_dirs;
 
-    file_data, success_read := read_entire_file(file_path);
-    // NOTE: we're not freeing because the config will take ownership of it
-    // (and if you reload it'll leak the old data, which we should fix at some point!)
-    if !success_read return empty, false, false, tprint("Couldn't read the config file file '%'", file_path), .[];
-
-    config, success_parse, error_msg, warnings := parse_config(file_path, file_path, file_data);
-    if !success_parse return empty, false, false, tprint("Error when loading config file '%'.\n%", file_path, error_msg), .[];
-
-    new_hash := calculate_meow_hash(file_data);
-    changed := new_hash != <<hash;
-    if changed then <<hash = new_hash;
-
-    return config, true, changed, "", warnings;
-}
-
-merge_configs :: (dst: *Config, src: Config) {
-    // Workspace
-    if src.workspace.workspace_dirs then dst.workspace.workspace_dirs = src.workspace.workspace_dirs;
-    if src.workspace.ignore_dirs    then dst.workspace.ignore_dirs    = src.workspace.ignore_dirs;
-
-    if src.workspace.allow_file_extensions || src.workspace.allow_file_extension_wildcards {
-        dst.workspace.allow_file_extensions          = src.workspace.allow_file_extensions;
-        dst.workspace.allow_file_extension_wildcards = src.workspace.allow_file_extension_wildcards;
+    if parsed.allow_file_extensions || parsed.allow_file_extension_wildcards {
+        dst.workspace.allow_file_extensions          = parsed.allow_file_extensions;
+        dst.workspace.allow_file_extension_wildcards = parsed.allow_file_extension_wildcards;
     }
-    if src.workspace.ignore_file_extensions || src.workspace.ignore_file_extension_wildcards {
-        dst.workspace.ignore_file_extensions          = src.workspace.ignore_file_extensions;
-        dst.workspace.ignore_file_extension_wildcards = src.workspace.ignore_file_extension_wildcards;
+    if parsed.ignore_file_extensions || parsed.ignore_file_extension_wildcards {
+        dst.workspace.ignore_file_extensions          = parsed.ignore_file_extensions;
+        dst.workspace.ignore_file_extension_wildcards = parsed.ignore_file_extension_wildcards;
     }
 
     // Keymap
-    merge_keymaps :: (dst_keymap: *[] Key_Mapping, src_keymap: [] Key_Mapping) #expand {
+    merge_keymaps :: (dst_keymap: *[] Key_Mapping, src_keymap: *[..] Key_Mapping) #expand {
         if !src_keymap return;
-        result := resizable(src_keymap);  // the source goes first, because it needs to have priority
-        array_extend(*result, <<dst_keymap);
-        <<dst_keymap = result;
+        array_extend(src_keymap, <<dst_keymap);
+        <<dst_keymap = <<src_keymap;
     }
-    merge_keymaps(*dst.keymap.common,           src.keymap.common);
-    merge_keymaps(*dst.keymap.editors,          src.keymap.editors);
-    merge_keymaps(*dst.keymap.open_file_dialog, src.keymap.open_file_dialog);
-    merge_keymaps(*dst.keymap.search_dialog,    src.keymap.search_dialog);
+    merge_keymaps(*dst.keymap.common,           *parsed.keymap_common);
+    merge_keymaps(*dst.keymap.editors,          *parsed.keymap_editors);
+    merge_keymaps(*dst.keymap.open_file_dialog, *parsed.keymap_open_file_dialog);
+    merge_keymaps(*dst.keymap.search_dialog,    *parsed.keymap_search_dialog);
 
     // Settings
     #insert -> string {
         b: String_Builder;
-
-        for setting : SETTINGS {
-            code := #string END
-                if src.settings.%1 != DEFAULT_CONFIG.settings.%1 {
-                    dst.settings.%1 = src.settings.%1;
-                }
-            END
-            print_to_builder(*b, code, setting.name);
+        for setting : type_info(Settings).members {
+            print_to_builder(*b, "if array_find(parsed.set_settings, \"%1\") { dst.settings.%1 = parsed.settings.%1; }\n", setting.name);
         }
-
         return builder_to_string(*b);
     }
 
     // Fonts
-    if src.style.font {
-        dst.style.font = ifx src.style.font then src.style.font else "default";
+    if parsed.font {
+        dst.style.font = parsed.font;
 
-        loaded_data, success := load_font_by_name(src.style.font);
+        loaded_data, success := load_font_by_name(parsed.font);
         if success {
             main_font_data = loaded_data;
-            main_font_name = src.style.font;
+            main_font_name = parsed.font;
         } else {
             // NOTE: this error will be removed by the config success message. Should do something about it
-            add_user_error(tprint("Couldn't load font %", src.style.font));
+            add_user_error(tprint("Couldn't load font %", parsed.font));
         }
     }
-    if src.style.font_size > 0 {
-        dst.style.font_size = src.style.font_size;
-        font_size = src.style.font_size;
+    if parsed.font_size > 0 {
+        dst.style.font_size = parsed.font_size;
+        font_size = parsed.font_size;
         default_font_size = font_size;
     }
 
-    init_fonts_and_dependent_things();
-
     // Colors
-    for src.style.parsed_colors {
-        color_ptr, success := map_color_name_to_color_struct(it.color_name);
-        if success {
+    for parsed.colors {
+        color_ptr := map_color_name_to_color_struct(dst, it.color_name);
+        if color_ptr {
             <<color_ptr = it.color;
         } else {
             log_error("Couldn't map color name '%' to color pointer. This is a bug", it.color_name);
         }
     }
-    CODE_COLOR_MAP = refresh_code_color_map();
 
     // Platform config
-    platform_copy_config(*src.platform, *dst.platform);
+    platform_copy_config(*parsed.platform, *dst.platform);
 }
 
 load_font_by_name :: (name: string) -> font_data: string, success: bool {
@@ -277,11 +272,16 @@ current_project_name: string;
 
 config: Config;
 
+// Used to remember the global settings to then apply the project config on top
+// when it's reloaded to avoid losing the original global settings
+saved_global_config: Config;
+
 Config :: struct {
     workspace: Workspace;
     keymap:    Keymap;
     settings:  Settings;
     style:     Style;
+    colors:    Color_Values;
     platform:  Platform_Config;
 }
 
@@ -326,21 +326,9 @@ Keymap :: struct {
     search_dialog:    [] Key_Mapping;
 }
 
-Color :: struct {
-    #as vec4 : Vector4 = ---;
-
-    #place vec4;
-    using components : struct { r, g, b, a : float = 1; };
-
-    #place vec4;
-    floats : [4] float = ---;
-}
-
 Style :: struct {
     font      := "";
     font_size := -1;
-
-    parsed_colors: [] Parsed_Color;
 }
 
 style: Style;
@@ -487,17 +475,19 @@ EXAMPLE_PROJECT_FILE_DATA :: #run read_entire_file(EXAMPLE_PROJECT_CONFIG_NAME);
 #scope_file
 
 #if OS == .MACOS {
-    DEFAULT_CONFIG_NAME         :: "default_macos.focus-config";
+    DEFAULT_CONFIG_NAME :: "default_macos.focus-config";
 } else {
-    DEFAULT_CONFIG_NAME         :: "default.focus-config";
+    DEFAULT_CONFIG_NAME :: "default.focus-config";
 }
 EXAMPLE_PROJECT_CONFIG_NAME :: "example-project.focus-config";
 
 
 DEFAULT_CONFIG :: #run -> Config {
-    config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA);
+    parsed_config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA);
     assert(success, "Couldn't parse the default config file '%'", DEFAULT_CONFIG_NAME);
-    return config;
+    default_config: Config;
+    merge_configs(*default_config, parsed_config);
+    return default_config;
 };
 
 // Validate the example project config
