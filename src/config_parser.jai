@@ -118,8 +118,8 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "code_highlight";                  return *config.colors.CODE_HIGHLIGHT;
         case "code_error";                      return *config.colors.CODE_ERROR;
         case "code_keyword";                    return *config.colors.CODE_KEYWORD;
-        case "code_jump";                       color = *Colors.CODE_JUMP;
-        case "code_directive";                  color = *Colors.CODE_DIRECTIVE;
+        case "code_jump";                       return *config.colors.CODE_JUMP;
+        case "code_directive";                  return *config.colors.CODE_DIRECTIVE;
     }
 
     return xx 0;

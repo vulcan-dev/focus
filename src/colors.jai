@@ -55,6 +55,8 @@ Color_Values :: struct {
     CODE_VALUE              := Color.{ r = 0.84, g = 0.60, b = 0.71, a = 1.0 };
     CODE_HIGHLIGHT          := Color.{ r = 0.85, g = 0.61, b = 0.46, a = 1.0 };
     CODE_ERROR              := Color.{ r = 1.00, g = 0.00, b = 0.00, a = 1.0 };
+    CODE_JUMP               := Color.{ r = 0.902, g = 0.493, b = 0.457, a = 1.0 };
+    CODE_DIRECTIVE          := Color.{ r = 0.493, g = 0.902, b = 0.457, a = 1.0 };
     CODE_KEYWORD            := Color.{ r = 0.902, g = 0.493, b = 0.457, a = 1.0 };
 };
 
@@ -64,7 +66,9 @@ Code_Color :: enum u8 {
     DEFAULT;
     COMMENT;
     TYPE;
+    DIRECTIVE;
     KEYWORD;
+    JUMP_KEYWORD;
     VALUE_KEYWORD;
     VALUE;
     FUNCTION;
@@ -85,11 +89,13 @@ refresh_code_color_map :: () -> [Code_Color.NUM_COLORS] Vector4 {
 
     result[DEFAULT]         = Colors.CODE_DEFAULT;
     result[COMMENT]         = Colors.CODE_COMMENT;
+    result[DIRECTIVE]       = Colors.CODE_DIRECTIVE;
     result[TYPE]            = Colors.CODE_TYPE;
     result[FUNCTION]        = Colors.CODE_FUNCTION;
     result[PUNCTUATION]     = Colors.CODE_PUNCTUATION;
     result[STRING]          = Colors.CODE_STRING;
     result[VALUE]           = Colors.CODE_VALUE;
+    result[JUMP_KEYWORD]    = Colors.CODE_JUMP;
     result[VALUE_KEYWORD]   = Colors.CODE_VALUE;
     result[ERROR]           = Colors.CODE_ERROR;
     result[KEYWORD]         = Colors.CODE_KEYWORD;
