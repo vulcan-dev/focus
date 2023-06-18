@@ -1701,9 +1701,9 @@ is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64,
     if first_token_pos >= cursor_pos  return false;
 
     if buffer.lang == {
-        case .Jai;    return jai_is_keyword_which_can_braceless_indent(buffer,    first_token_pos, cursor_pos, at_end_of_line);
-        case .C;      return c_is_keyword_which_can_braceless_indent(buffer,      first_token_pos, cursor_pos, at_end_of_line);
-        case .CSharp; return csharp_is_keyword_which_can_braceless_indent(buffer, first_token_pos, cursor_pos, at_end_of_line);
+        case .Jai;    return jai_is_keyword_which_can_braceless_indent   (buffer, first_token_pos, cursor_pos);
+        case .C;      return c_is_keyword_which_can_braceless_indent     (buffer, first_token_pos, cursor_pos);
+        case .CSharp; return csharp_is_keyword_which_can_braceless_indent(buffer, first_token_pos, cursor_pos);
     }
 
     return false;

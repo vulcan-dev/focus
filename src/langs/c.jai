@@ -27,14 +27,41 @@ highlight_c_syntax :: (using buffer: *Buffer) {
     }
 }
 
-c_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64, at_end_of_line: bool) -> bool {
-    i := first_token_pos;
-    if buffer.colors[i] != xx Code_Color.KEYWORD  return false;
+c_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64) -> bool {
+    assert(cursor_pos > first_token_pos);
 
+    /* We don't have a KEYWORDS array for csharp, so check disabled for now
+    #run {
+        // Check that the short-circuit assumptions we use below still hold
+        assert(array_count_starts_with(KEYWORDS, "f") == 1);
+        assert(array_count_starts_with(KEYWORDS, "w") == 1);
+        assert(array_count_starts_with(KEYWORDS, "el") == 1);
+        assert(array_count_starts_with(KEYWORDS, "th") == 1);
+    }
+    */
+
+    i := first_token_pos;
     length := cursor_pos - i;
-    return length > 2 && buffer.bytes[i] == #char "i" && buffer.bytes[i+1] == #char "f" && buffer.bytes[i+2] != #char "x" // if
-        || length > 3 && buffer.bytes[i] == #char "f" // for
-        || length > 5 && buffer.bytes[i] == #char "w"; // while
+    if buffer.colors[i] == xx Code_Color.KEYWORD {
+        if length >= 2 && buffer.bytes[i] == #char "i" && buffer.bytes[i+1] == #char "f" && buffer.bytes[i+2] != #char "x" // if
+        || length >= 3 && buffer.bytes[i] == #char "f" // for
+        || length >= 5 && buffer.bytes[i] == #char "w" // while
+            return true;
+    }
+
+    i = cursor_pos - 1;
+    while i > first_token_pos && is_whitespace_char(buffer.bytes[i])
+        i -= 1;
+
+    if buffer.colors[i] == xx Code_Color.KEYWORD {
+        while i > first_token_pos && buffer.colors[i - 1] == xx Code_Color.KEYWORD
+            i -= 1;
+        length = cursor_pos - i;
+        return length >= 4 && buffer.bytes[i] == #char "e" && buffer.bytes[i+1] == #char "l" // else
+            || length >= 4 && buffer.bytes[i] == #char "t" && buffer.bytes[i+1] == #char "h"; // then
+    }
+
+    return false;
 }
 
 
