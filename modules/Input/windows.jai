@@ -11,6 +11,16 @@ dump_held_keys :: () {
     for key_down_table  print("%: %\n", it_index, it);
 }
 
+#scope_export
+
+// Procedure pointers that allow us to draw frames during resize/move events.
+windows_draw_frame: () -> ();
+windows_update_window_size: (s64, s64) -> ();
+windows_main_context: *Context;
+
+
+#scope_module
+
 //
 // @Incomplete @Robustness: We should check whichever flags Windows gives us automatically
 // in the event data (e.g. is control held, is shift held, etc)... rather than maintaining
@@ -171,11 +181,7 @@ get_vk :: (key: Key_Code) -> VK: u64 {
 
 MyWindowProc :: (hwnd: HWND, message: u32,
                  wParam: WPARAM, lParam: LPARAM) -> s64 #c_call {
-    new_context: Context;
-    new_context.allocator = Context.default_allocator;
-    new_context.logger    = Context.default_logger;
-
-    push_context new_context {
+    push_context windows_main_context {
         using Key_Code;
 
   	    if message == {
@@ -250,9 +256,9 @@ MyWindowProc :: (hwnd: HWND, message: u32,
           case WM_KILLFOCUS;
             input_application_has_focus = false;
           case WM_PAINT;
-		    ValidateRect(hwnd, null);
+            ValidateRect(hwnd, null);
+		    windows_draw_frame();
 	        return DefWindowProcW(hwnd, message, wParam, lParam);
-
           case WM_LBUTTONDOWN; #through;
           case WM_LBUTTONUP;
             maybe_send_vkey_event(VK_LBUTTON, message == WM_LBUTTONDOWN);
@@ -312,6 +318,9 @@ MyWindowProc :: (hwnd: HWND, message: u32,
 
             DefWindowProcW(hwnd, message, wParam, lParam);  // This is required for some reason.    // @@ Why?
           case WM_SIZE;
+            client_rect: RECT;
+            GetClientRect(hwnd, *client_rect);
+            windows_update_window_size(client_rect.right, client_rect.bottom);
             if wParam == {
               case SIZE_MAXIMIZED;
                 window_minimized = false;
