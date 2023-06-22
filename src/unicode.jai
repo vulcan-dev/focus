@@ -42,14 +42,40 @@ Utf8_Char :: struct {
     count: s32;
 }
 
+char_as_string :: (char_pointer: *u8) -> string {
+    result : string = ---;
+    result.data = char_pointer;
+    result.count = 1;
+    return result;
+}
+
+opening_brackets :: u8.[#char "{", #char "(", #char "[", #char "<"];
+closing_brackets :: u8.[#char "}", #char ")", #char "]", #char ">"];
+
+is_bracket :: (c: u8) -> bracket: u8, matching_bracket: u8, is_opening_bracket: bool {
+    for opening_brackets  if c == it  return c, closing_brackets[it_index], true;
+    for closing_brackets  if c == it  return c, opening_brackets[it_index], false;
+    return 0, 0, false;
+}
+
 is_closing_bracket :: (utf8: Utf8_Char) -> bool {
     if utf8.count != 1  return false;
     return is_closing_bracket(utf8.bytes[0]);
 }
 
 is_closing_bracket :: (c: u8) -> bool {
-    return c == #char "}" || c == #char ")" || c == #char "]" || c == #char ">";
+    #insert -> string {
+        builder : String_Builder;
+        append(*builder, "return ");
+        for * closing_brackets {
+            if it_index  append(*builder, " ||");
+            print_to_builder(*builder, " c == #char \"%\"", char_as_string(it));
+        }
+        append(*builder, ";");
+        return builder_to_string(*builder);
+    }
 }
+
 
 advance_by_chars :: (s: string, num_chars: s64) -> string #must, remainder: s64 {
     result := s;

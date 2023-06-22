@@ -195,6 +195,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .jump_to_line_end;                 move_cursors_end                    (editor, buffer);
         case .jump_to_file_start;               move_to_file_start                  (editor, buffer);
         case .jump_to_file_end;                 move_to_file_end                    (editor, buffer);
+        case .jump_to_matching_bracket;         jump_to_matching_bracket            (editor, buffer, shift_pressed);
 
         case .indent_or_go_to_next_tabstop;     indent_or_tab                       (editor, buffer); keep_selection = true;
         case .indent;                           indent_lines                        (editor, buffer); keep_selection = true;
@@ -1536,6 +1537,7 @@ is_a_move_action :: (action: Action_Editors) -> bool {
         case .jump_to_line_end;                 return true;
         case .jump_to_file_start;               return true;
         case .jump_to_file_end;                 return true;
+        case .jump_to_matching_bracket;         return true;
     }
     return false;
 }
@@ -2073,8 +2075,10 @@ unindent_lines :: (editor: *Editor, buffer: *Buffer, only_unindent_closing_brack
         }
         if only_unindent_closing_bracket_lines {
             for start + spaces_at_line_start .. end - 2 {
-                if  buffer.bytes[it] != #char " " && !is_closing_bracket(buffer.bytes[it])
-                    continue line_start;
+                if buffer.bytes[it] != #char " " && !is_closing_bracket(buffer.bytes[it]) {
+                    spaces_at_line_start = 0;
+                    break;
+                }
             }
         }
         adjusted_start := start - spaces_removed;
@@ -2414,6 +2418,74 @@ paste_from_clipboard :: (editor: *Editor, buffer: *Buffer) {
     }
 
     editor.cursor_moved = .large_edit;
+}
+
+
+jump_to_matching_bracket :: (editor: *Editor, buffer: *Buffer, with_selection: bool) {
+    for * cursor : editor.cursors {
+        if cursor.pos < 0 || cursor.pos >= buffer.bytes.count  continue;
+
+        check_buffer_position :: (i: s32) -> handled: bool #expand {
+            initial_i := i;
+            color := cast(Code_Color) buffer.colors[i];
+            bracket, other, opening := is_bracket(buffer.bytes[i]);
+            if !bracket && color == .STRING && buffer.bytes[i] == #char "\"" {
+                bracket, other = #char "\"";
+                opening = i == 0 || cast(Code_Color)buffer.colors[i - 1] != .STRING;
+            }
+            if bracket {
+                finicky := color == .STRING || color == .COMMENT;
+
+                direction := cast(s32)(ifx opening then +1 else -1);
+                had_no_selection := cursor.sel == cursor.pos;
+                terminator := ifx opening then buffer.bytes.count else -1;
+
+                i += direction;
+                count := 1;
+                while i != terminator { defer i += direction;
+                    if buffer.colors[i] != cast(u8)color {
+                        if finicky  return true;
+                        continue;
+                    }
+                    c := buffer.bytes[i];
+                    if c == other {
+                        if c == #char "\"" {
+                            next_i := i + direction;
+                            if next_i >= 0 && next_i < buffer.bytes.count && cast(Code_Color)buffer.colors[next_i] == .STRING
+                                continue;
+                        }
+                        count -= 1;
+                        if count == 0 {
+                            cursor.pos = i;
+                            if with_selection {
+                                if opening  cursor.pos += 1;
+                                if had_no_selection
+                                    cursor.sel = ifx opening then initial_i else initial_i + 1;
+                            }
+                            else {
+                                cursor.pos += 1;
+                                cursor.sel = cursor.pos;
+                            }
+                            editor.cursor_moved = .jumped;
+                            return true;
+                        }
+                    }
+                    else if c == bracket {
+                        count += 1;
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        handled := false;
+        if cursor.pos > 0
+            handled = check_buffer_position(cursor.pos - 1);
+
+        if !handled
+            check_buffer_position(cursor.pos);
+    }
 }
 
 toggle_comment :: (editor: *Editor, buffer: *Buffer) {

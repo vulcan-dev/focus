@@ -8,14 +8,14 @@
     - [ ] restore previous window on startup
 - [ ] lexing/parsing
 - [.] theme
-- [ ] autoindent
-- [ ] autobraceclose
 - [ ] add MD icons
 - [ ] search: order declaration first
 - [ ] stupid goto definition
-- [ ] go to matching brace
-- [ ] dedent on }
 
+- [x] go to matching brace
+- [x] autoindent
+- [x] autobraceclose
+- [x] dedent on }
 - [x] ctrl-tab go to previous file
 - [x] return/break/continue
 - [x] multicursor

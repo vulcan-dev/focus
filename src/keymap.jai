@@ -342,6 +342,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "save",
     "save_all",
     "toggle_comment",
+    "jump_to_matching_bracket",
     "select_line",
     "scroll_viewport_up",
     "scroll_viewport_up_fast",
