@@ -9,7 +9,7 @@ calibrated_eye_position : Vector2;
 raw_eye_position : Vector2;
 calibration_offset : Vector2;
 
-calibration_key : u32 : 18;//124;
+calibration_key : u32 : VK_INSERT;//124;
 target_key : u32 : 18;
 
 #load "tobii.jai";

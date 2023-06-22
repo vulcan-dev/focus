@@ -1,6 +1,5 @@
 .build/
 *.pdb
-*.exe
 *.rdbg
 *.dSYM/
 *.dmg
@@ -14,3 +13,4 @@ focus_debug
 focus-trace.json
 install.bat
 global.focus-config
+focus-crash-report.txt

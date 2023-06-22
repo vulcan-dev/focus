@@ -316,6 +316,9 @@ active_editor_type_char :: (char: u32) {
     buffer.last_edit_time = frame_time;
     editor.cursor_moved = .unimportant;
     cursors_start_blinking();
+
+    if is_closing_bracket(utf8_char)
+        unindent_lines(editor, buffer, true);
 }
 
 get_active_editor_and_buffer :: () -> *Editor, *Buffer {
@@ -2046,7 +2049,7 @@ indent_lines :: (editor: *Editor, buffer: *Buffer) {
     editor.cursor_moved = .unimportant;
 }
 
-unindent_lines :: (editor: *Editor, buffer: *Buffer) {
+unindent_lines :: (editor: *Editor, buffer: *Buffer, only_unindent_closing_bracket_lines := false) {
     // Find lines which will be affected (we don't want to unindent the same line more than once if it has more than 1 cursor on it)
     line_starts, last_line_end_offset := get_line_starts_for_lines_with_cursors_tmp(editor, buffer);
     array_add(*line_starts, last_line_end_offset);
@@ -2055,8 +2058,8 @@ unindent_lines :: (editor: *Editor, buffer: *Buffer) {
     // (properly handle the case when cursor is in the deleted range)
     b: String_Builder;  // not using the temp allocator because the string may be too large
     spaces_removed := 0;
-    for 0..line_starts.count-2 {
-        start, end := line_starts[it], line_starts[it+1];
+    for line_start: 0..line_starts.count-2 {
+        start, end := line_starts[line_start], line_starts[line_start+1];
         if start >= buffer.bytes.count continue;
         spaces_at_line_start := 0;
         if buffer.bytes[start] == #char "\t" {
@@ -2066,6 +2069,12 @@ unindent_lines :: (editor: *Editor, buffer: *Buffer) {
             for start..min(start + TAB_SIZE, end - 1) - 1 {
                 if buffer.bytes[it] != #char " " break;
                 spaces_at_line_start += 1;
+            }
+        }
+        if only_unindent_closing_bracket_lines {
+            for start + spaces_at_line_start .. end - 2 {
+                if  buffer.bytes[it] != #char " " && !is_closing_bracket(buffer.bytes[it])
+                    continue line_start;
             }
         }
         adjusted_start := start - spaces_removed;
