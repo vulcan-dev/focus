@@ -10,7 +10,6 @@ raw_eye_position : Vector2;
 calibration_offset : Vector2;
 
 calibration_key : u32 : VK_INSERT;//124;
-target_key : u32 : 18;
 
 #load "tobii.jai";
 
@@ -67,7 +66,7 @@ eye_tracking_init :: () {
 eye_tracking_tick :: () {
     IL_WaitAndUpdate(intlib, 0);
 
-    eye_tracking_hot = Input.is_key_held(target_key);
+    eye_tracking_hot = Input.is_key_held(18) && Input.is_key_held(17);
 
     if Input.is_key_held(calibration_key) {
         eye_tracking_hot = true;

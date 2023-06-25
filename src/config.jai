@@ -169,6 +169,13 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> succes
 
     // Apply colors
     Colors = config.colors;
+    #if DEBUG {
+        Colors.BACKGROUND =           Color.{ r = 0.086, g = 0.165, b = 0.133 };
+        Colors.BACKGROUND_DARK =      Color.{ r = 0.065, g = 0.125, b = 0.101 };
+        Colors.BACKGROUND_HIGHLIGHT = Color.{ r = 0.097, g = 0.185, b = 0.15  };
+        Colors.BACKGROUND_LIGHT =     Color.{ r = 0.102, g = 0.195, b = 0.158 };
+        Colors.BACKGROUND_BRIGHT =    Color.{ r = 0.131, g = 0.25,  b = 0.202 };
+    }
     CODE_COLOR_MAP = refresh_code_color_map();
 
     // Make sure the values are within the acceptable range

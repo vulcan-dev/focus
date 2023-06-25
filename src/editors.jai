@@ -172,6 +172,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_to_next_editor_history;      move_to_next_editor_history         ();
         case .move_to_previous_buffer;          move_to_previous_buffer             ();
         case .move_to_next_buffer;              move_to_next_buffer                 ();
+        case .jump_to_definition;               jump_to_definition                  (editor, buffer); keep_selection = true;
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
@@ -1661,6 +1662,14 @@ move_to_file_end :: (editor: *Editor, buffer: Buffer) {
     editor.cursor_moved = .jumped;
 }
 
+jump_to_definition :: (editor: *Editor, buffer: Buffer) {
+    if buffer.lang == {
+        case .Jai;      jai_jump_to_definition(editor, buffer);
+        //case .C;
+        //case .CSharp;
+    }
+}
+
 is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64, at_end_of_line: bool) -> bool {
     if first_token_pos >= cursor_pos  return false;
 
@@ -2306,18 +2315,18 @@ copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false) 
     if !any_selection && !cut && !config.settings.copy_whole_line_without_selection return;
 
     // We are sure to copying something, dump all the previous clipboard slices
-    array_reset(*clipboard.slices); 
+    array_reset(*clipboard.slices);
 
     // Fill the internal clipboard and the slices from the current editor cursors
     b: String_Builder;
     offset := 0;
     for * cursor : editor.cursors {
         if !has_selection(cursor) && !cut && !config.settings.copy_whole_line_without_selection continue;
-        
-        // Get string from the cursor and format it if necessary 
+
+        // Get string from the cursor and format it if necessary
         str := ifx has_selection(cursor) {
             selected_str := get_selected_string(cursor, buffer);
-            ifx it_index != editor.cursors.count - 1 then join(selected_str, "\n") else selected_str; 
+            ifx it_index != editor.cursors.count - 1 then join(selected_str, "\n") else selected_str;
         } else {
             line_num := offset_to_line(buffer, cursor.pos);
             get_line_as_string(buffer, line_num);
@@ -2326,7 +2335,7 @@ copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false) 
 
         // Add a new clipboard slice for each cursor
         array_add(*clipboard.slices, .{ xx offset, xx str.count, has_selection(cursor) });
- 
+
         offset += str.count;
     }
 
@@ -2360,10 +2369,10 @@ paste_from_clipboard :: (editor: *Editor, buffer: *Buffer) {
 
         // If there is only one slice without selection, insert slice at cursor line
         if !has_selection(cursor) && clipboard.slices.count == 1 && !clipboard.slices[0].was_selected {
-            line_num   := offset_to_line(buffer, cursor.pos); 
+            line_num   := offset_to_line(buffer, cursor.pos);
             line_start := get_line_start_offset(buffer, line_num);
             str        := clipboard.text;
-            
+
             // insert_string_at_offset() make the buffer dirty
             // we rescan to clean it else we can't call offset_to_line for the next cursors
             insert_string_at_offset(buffer, line_start, str);
@@ -2372,21 +2381,21 @@ paste_from_clipboard :: (editor: *Editor, buffer: *Buffer) {
             cursor.pos   += xx str.count;
             offset_delta += str.count;
             add_paste_animation(editor, .{ line_start, line_start + cast(s32) str.count });
-        } 
+        }
         // If they have the same number of entries paste one slice per cursor
         else if editor.cursors.count == clipboard.slices.count {
             clipboard_slice := clipboard.slices[it_index];
             selection       := get_selection(cursor);
             count           := clipboard_slice.count - 1; // Don't paste the last newline of the slice
             if it_index == clipboard.slices.count - 1 && clipboard_slice.was_selected then count += 1; // If the last slice was selected, it didn't have newline
-            str             := slice(clipboard.text, clipboard_slice.start, count); 
+            str             := slice(clipboard.text, clipboard_slice.start, count);
 
             replace_range(buffer, selection, str);
 
             cursor.pos    = xx (selection.start + str.count);
             offset_delta += str.count - (selection.end - selection.start);
             add_paste_animation(editor, .{ selection.start, selection.start + cast(s32) str.count });
-        } 
+        }
         // Paste the entire clipboard for each cursor
         else {
             selection := get_selection(cursor);
@@ -2723,7 +2732,7 @@ clipboard: struct {
 }
 
 Clipboard_Slice :: struct {
-    start: s32; 
+    start: s32;
     count: s32;
     was_selected: bool;
 }
@@ -2951,6 +2960,11 @@ finalize_buffer_switch :: () {
         make_buffer_active(buffer_order[buffer_switcher_index]);
         buffer_switcher_index = -1;
     }
+}
+
+line_col :: (pos: s32) -> string #expand {
+    coords := offset_to_coords(`buffer, pos);
+    return tprint("[%, %]", coords.line, coords.col);
 }
 
 #scope_file

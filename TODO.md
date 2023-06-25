@@ -11,6 +11,7 @@
 - [ ] add MD icons
 - [ ] search: order declaration first
 - [ ] stupid goto definition
+- [ ] make copypaste work with multicursor (multi->multi, across buffers)
 
 - [x] go to matching brace
 - [x] autoindent

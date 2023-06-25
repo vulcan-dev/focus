@@ -6,6 +6,17 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
 
     color: Code_Color;
 
+    jai_file := add_jai_file(buffer.file.full_path);
+    array_reset(*jai_file.scopes);
+    array_reset(*jai_file.declarations);
+    array_add(*jai_file.scopes, .{start = 0, end = cast(s32)buffer.bytes.count - 1});
+
+    open_scope_indexes : [..] s32; // could be on temp allocator @TODO
+    defer array_free(open_scope_indexes);
+
+    inside_proc_declaration_parameters := false;
+    parameter_paren_count := 0;
+
     while true {
         token := get_next_token(*tokenizer);
         if token.type == .eof break;
@@ -16,30 +27,86 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
 
         using tokenizer;
 
+        // Read scopes
+        if token.type == .punctuation {
+            if inside_proc_declaration_parameters {
+                if token.punctuation == .l_paren {
+                    parameter_paren_count += 1;
+                }
+                else if token.punctuation == .r_paren {
+                    parameter_paren_count -= 1;
+                    if parameter_paren_count == 0 {
+                        inside_proc_declaration_parameters = false;
+                        scope_index := open_scope_indexes[open_scope_indexes.count - 1];
+                        open_scope_indexes.count -= 1;
+                        if jai_file.scopes.count > scope_index
+                            jai_file.scopes[scope_index].end = token.start + token.len;
+                    }
+                }
+            }
+            else {
+                if token.punctuation == .l_brace {
+                    // @TODO && (prev.type != .punctuation || prev.punctation != .period)
+                    array_add(*open_scope_indexes, xx jai_file.scopes.count);
+                    array_add(*jai_file.scopes, .{start=token.start, end = -1});
+                }
+                else if token.punctuation == .r_brace && open_scope_indexes.count > 0 {
+                    scope_index := open_scope_indexes[open_scope_indexes.count - 1];
+                    open_scope_indexes.count -= 1;
+                    if jai_file.scopes.count > scope_index
+                        jai_file.scopes[scope_index].end = token.start + token.len;
+                }
+            }
+        }
+
         // Maybe retroactively highlight a function
         if token.type == .punctuation && token.punctuation == .l_paren {
             // Handle "func :: ("
-            before_prev, prev := last_tokens[0], last_tokens[1];
             if prev.type == .identifier {
                 memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
-            } else if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
-                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
             }
-        } else if token.type == .keyword && token.keyword == .kw_inline {
+            else if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
+                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+                inside_proc_declaration_parameters = true;
+                parameter_paren_count = 1;
+                array_add(*open_scope_indexes, xx jai_file.scopes.count);
+                array_add(*jai_file.scopes, .{start=token.start, end = -1});
+            }
+        }
+        else if token.type == .keyword && token.keyword == .kw_inline {
             // Handle "func :: inline"
-            before_prev, prev := last_tokens[0], last_tokens[1];
             if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
                 memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
             }
         }
 
+        // Look for definitions
+        if token.type == .operation && (token.operation == .colon || token.operation == .double_colon || token.operation == .colon_equal) {
+            // @TODO comma separated declarations
+            if prev.type == .identifier {
+                scope_index := ifx open_scope_indexes.count > 0 then open_scope_indexes[open_scope_indexes.count - 1] else 0;
+                array_add(*jai_file.declarations, .{name=to_string(buffer, prev), pos=prev.start, scope_index=scope_index});
+                //print("% %\n", t - bytes.data, to_string(buffer, prev));
+            }
+            else if prev.type == .operation && before_prev.type == .keyword && to_string(buffer, before_prev) == "operator" {
+                // operator overload @TODO
+            }
+            else {
+                //print("Found colon, before it was %\n", prev);
+                // @TODO
+            }
+        }
+
         // Remember last 2 tokens
-        last_tokens[0] = last_tokens[1];
-        last_tokens[1] = token;
+        before_prev = prev;
+        prev = token;
 
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
     }
+
+    //print("%\n", jai_file.scopes);
+    //print("%\n", jai_file.declarations);
 }
 
 jai_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64) -> bool {
@@ -74,6 +141,23 @@ jai_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: 
     }
 
     return false;
+}
+
+jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
+    cursor := *editor.cursors[editor.main_cursor];
+
+    // @TODO don't select, just get the word at the cursor
+    select_word(buffer, cursor);
+    word := get_selected_string(cursor, buffer);
+
+    pos, found := declaration_pos_for_word(buffer.file.full_path, cursor.pos, word);
+    print("% % %\n", line_col(cursor.pos), line_col(pos), found);
+    if found {
+        cursor.pos = pos;
+        cursor.sel = pos + cast(s32)word.count;
+        cursor.col_wanted = -1;
+        editor.cursor_moved = .jumped;
+    }
 }
 
 #scope_file
@@ -498,6 +582,9 @@ Tokenizer :: struct {
     t:       *u8;  // cursor
 
     last_tokens: [2] Token;  // to retroactively highlight functions
+    #place last_tokens;
+    prev : Token;
+    before_prev : Token;
 }
 
 Token :: struct {
@@ -531,6 +618,27 @@ Token :: struct {
         compiler_directive;
         invalid;
     }
+}
+
+print_token :: (buffer: *Buffer, using token: Token) {
+    b : String_Builder;
+    print_to_builder(*b, "% % ", start, type);
+    if type == {
+        case .keyword; print_to_builder(*b, ": %", keyword);
+        case .punctuation; print_to_builder(*b, ": %", punctuation);
+        case .operation; print_to_builder(*b, ": %", operation);
+        case .compiler_directive; print_to_builder(*b, ": %", compiler_directive);
+    }
+    append(*b, " ");
+    append(*b, to_string(buffer, token));
+    print("%\n", builder_to_string(*b));
+}
+
+to_string :: (buffer: *Buffer, token: Token) -> string {
+    result : string = ---;
+    result.data = *buffer.bytes[token.start];
+    result.count = token.len;
+    return result;
 }
 
 // Must match the order of the types in the enum
@@ -690,6 +798,63 @@ eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
 
 is_white_space :: inline (c: u8) -> bool {
     return c == #char " " || c == #char "\r" || c == #char "\n";
+}
+
+
+jai_files : Simple_Bucket_Array(Jai_File, items_per_bucket = 1024, max_buckets = 1024);
+jai_file_for_filename : Table(string, *Jai_File);
+
+Jai_File :: struct {
+    scopes : [..] Scope;
+    declarations : [..] Declaration;
+}
+
+Scope :: struct {
+    start, end : s32;
+}
+
+Declaration :: struct {
+    name : string;
+    pos : s32;
+    scope_index : s32;
+}
+
+add_jai_file :: (path: string) -> *Jai_File, added: bool {
+    print("Adding jai file: %\n", path);
+    jai_file, found := table_find(*jai_file_for_filename, path);
+    if found  return jai_file, false;
+
+    jai_file = bucket_array_add(*jai_files);
+    table_set(*jai_file_for_filename, path, jai_file);
+    return jai_file, true;
+}
+
+get_jai_file :: (path: string) -> *Jai_File {
+    jai_file, found := table_find(*jai_file_for_filename, path);
+    if found  return jai_file;
+    else      return null;
+}
+
+declaration_pos_for_word :: (path: string, word_pos: s32, word: string, v : Vector3 = .{}) -> pos: s32, found: bool {
+    print("Searching for declaration in %\n", path);
+    jai_file := get_jai_file(path);
+    if !jai_file  return -1, false;
+
+    pos : s32 = -1;
+
+    for jai_file.declarations {
+        if it.pos > word_pos
+            break;
+
+        if it.name == word {
+            scope := jai_file.scopes[it.scope_index];
+            if scope.start <= word_pos && word_pos <= scope.end {
+                pos = it.pos;
+            }
+        }
+    }
+
+    return pos, pos >= 0;
 }
 
 
