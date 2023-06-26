@@ -11,11 +11,12 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
     array_reset(*jai_file.declarations);
     array_add(*jai_file.scopes, .{start = 0, end = cast(s32)buffer.bytes.count - 1});
 
-    open_scope_indexes : [..] s32; // could be on temp allocator @TODO
-    defer array_free(open_scope_indexes);
-
-    inside_proc_declaration_parameters := false;
-    parameter_paren_count := 0;
+    open_scopes : [..] struct { // could be on temp allocator @TODO
+        scope_index : s32;
+        is_linked_parameter_scope : bool;
+        is_a_struct_instance : bool;
+    };
+    defer array_free(open_scopes);
 
     while true {
         token := get_next_token(*tokenizer);
@@ -29,32 +30,31 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
 
         // Read scopes
         if token.type == .punctuation {
-            if inside_proc_declaration_parameters {
-                if token.punctuation == .l_paren {
-                    parameter_paren_count += 1;
-                }
-                else if token.punctuation == .r_paren {
-                    parameter_paren_count -= 1;
-                    if parameter_paren_count == 0 {
-                        inside_proc_declaration_parameters = false;
-                        scope_index := open_scope_indexes[open_scope_indexes.count - 1];
-                        open_scope_indexes.count -= 1;
-                        if jai_file.scopes.count > scope_index
-                            jai_file.scopes[scope_index].end = token.start + token.len;
-                    }
-                }
-            }
-            else {
-                if token.punctuation == .l_brace {
-                    // @TODO && (prev.type != .punctuation || prev.punctation != .period)
-                    array_add(*open_scope_indexes, xx jai_file.scopes.count);
+            if token.punctuation == .l_brace {
+                is_linked_scope := open_scopes.count > 0 && array_peek(open_scopes).is_linked_parameter_scope;
+                array_add(*open_scopes, .{scope_index = xx jai_file.scopes.count, is_linked_parameter_scope = is_linked_scope});
+                if prev.type == .punctuation && prev.punctuation == .period // don't add an actual scope if we're a struct instance
+                    open_scopes[open_scopes.count - 1].is_a_struct_instance = true;
+                else
                     array_add(*jai_file.scopes, .{start=token.start, end = -1});
-                }
-                else if token.punctuation == .r_brace && open_scope_indexes.count > 0 {
-                    scope_index := open_scope_indexes[open_scope_indexes.count - 1];
-                    open_scope_indexes.count -= 1;
-                    if jai_file.scopes.count > scope_index
-                        jai_file.scopes[scope_index].end = token.start + token.len;
+            }
+            else if token.punctuation == .r_brace && open_scopes.count > 0 {
+                open_scope := array_pop(*open_scopes);
+                if !open_scope.is_a_struct_instance {
+                    if jai_file.scopes.count > open_scope.scope_index {
+                        assert(jai_file.scopes[open_scope.scope_index].end == -1, "Trying to write a scope end but the scope already has one. % %\n", jai_file.scopes[open_scope.scope_index], open_scope.scope_index);
+                        jai_file.scopes[open_scope.scope_index].end = token.start + token.len;
+
+                        while open_scopes.count > 0 && array_peek(open_scopes).is_a_struct_instance
+                            array_pop(*open_scopes);
+
+                        if open_scope.is_linked_parameter_scope && open_scopes.count > 0 {
+                            open_scope = array_pop(*open_scopes);
+                            //assert(open_scope.is_linked_parameter_scope);
+                            assert(jai_file.scopes[open_scope.scope_index].end == -1, "Trying to write a scope end but the scope already has one. % %\n", jai_file.scopes[open_scope.scope_index], open_scope.scope_index);
+                            jai_file.scopes[open_scope.scope_index].end = token.start + token.len;
+                        }
+                    }
                 }
             }
         }
@@ -67,9 +67,7 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
             }
             else if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
                 memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
-                inside_proc_declaration_parameters = true;
-                parameter_paren_count = 1;
-                array_add(*open_scope_indexes, xx jai_file.scopes.count);
+                array_add(*open_scopes, .{scope_index = xx jai_file.scopes.count, is_linked_parameter_scope = true});
                 array_add(*jai_file.scopes, .{start=token.start, end = -1});
             }
         }
@@ -77,6 +75,7 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
             // Handle "func :: inline"
             if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
                 memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+                // @TODO next token should be l_paren, and should start scope
             }
         }
 
@@ -84,7 +83,7 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
         if token.type == .operation && (token.operation == .colon || token.operation == .double_colon || token.operation == .colon_equal) {
             // @TODO comma separated declarations
             if prev.type == .identifier {
-                scope_index := ifx open_scope_indexes.count > 0 then open_scope_indexes[open_scope_indexes.count - 1] else 0;
+                scope_index := ifx open_scopes.count > 0 then open_scopes[open_scopes.count - 1].scope_index else 0;
                 array_add(*jai_file.declarations, .{name=to_string(buffer, prev), pos=prev.start, scope_index=scope_index});
                 //print("% %\n", t - bytes.data, to_string(buffer, prev));
             }
@@ -105,8 +104,8 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
         memset(colors.data + token.start, xx color, token.len);
     }
 
-    //print("%\n", jai_file.scopes);
-    //print("%\n", jai_file.declarations);
+    print("%\n", jai_file.scopes);
+    print("%\n", jai_file.declarations);
 }
 
 jai_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64) -> bool {
@@ -857,5 +856,29 @@ declaration_pos_for_word :: (path: string, word_pos: s32, word: string, v : Vect
     return pos, pos >= 0;
 }
 
+/*
+#import "jai_parser";
+
+jai_files : Table(string, []*Node);
+
+jai_parse_file :: (path: string) {
+    parser : Parser(void);
+    parser.lexer = *create_lexer(read_entire_file(path), path);
+
+    nodes: [..]*Node;
+
+    table_set(*jai_files, path, nodes);
+
+    while !end(parser.lexer) {
+        node := parse(*parser, null);
+        if !node continue;
+        array_add(*nodes, node);
+    }
+
+    table_set(*files, path, nodes);
+
+    print("%\n", files);
+}
+*/
 
 #import "Hash_Table";

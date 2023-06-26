@@ -46,6 +46,18 @@ array_count_starts_with :: (array: []string, needle: string) -> int {
     return count;
 }
 
+array_pop :: (array: *[..] $T) -> T {
+    assert(array.count > 0);
+    result := array.*[array.count - 1];
+    array.count -= 1;
+    return result;
+}
+
+array_peek ::  (array: [..] $T) -> T {
+    assert(array.count > 0);
+    return array[array.count - 1];
+}
+
 to_bytes :: (src: string) -> [] u8 {
     result: [] u8;
     result.data = src.data;

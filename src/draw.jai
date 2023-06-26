@@ -1119,7 +1119,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             defer pop_scissor();
 
             coords := cursor_coords[main_cursor].pos;
-            width = xx Simp.prepare_text(font_ui_bold, tprint("Line: %  Col: %", coords.line + 1, coords.col + 1));
+            //#if DEBUG
+                text := tprint("Pos:%  Line: %  Col: %", cursors[main_cursor].pos, coords.line + 1, coords.col + 1);
+            //else
+            //    text := tprint("Line: %  Col: %", coords.line + 1, coords.col + 1);
+            width = xx Simp.prepare_text(font_ui_bold, text);
             line_col_start_x := footer_rect.x + footer_rect.w - width;
             Simp.draw_prepared_text(font_ui_bold, xx line_col_start_x, xx pen.y, color = Colors.UI_DIM);
 
