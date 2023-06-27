@@ -83,9 +83,9 @@ node_visit :: (node: *Node, data: Node_Visit_Data) {
                 module_path := tprint("%/%", JAI_MODULES_PATH, _import.module);
                 path = get_module_entry(module_path);
             case .FILE;
-                path = tprint("%/%", data.path_without_filename, _import.module); 
+                path = tprint("%/%", data.path_without_filename, _import.module);
             case .DIR;
-                path = tprint("%/%", data.path_without_filename, get_module_entry(_import.module)); 
+                path = tprint("%/%", data.path_without_filename, get_module_entry(_import.module));
             case .STRING;
                 // @TODO: Do we wanna parse the string here?
         }
@@ -111,7 +111,7 @@ parse_file :: (files: *Files, path: string) {
 
     parser: Parser(Node_Visit_Data);
     parser.user_data = .{
-        files=files,
+        files=jai_files,
         path_without_filename=path_without_filename,
     };
     parser.node_visit = node_visit;
@@ -161,7 +161,7 @@ main :: () {
     print("All done!\n");
 
     release(*pool);
- 
+
 }
 
 #load "json_export.jai";

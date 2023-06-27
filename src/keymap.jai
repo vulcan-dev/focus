@@ -317,6 +317,7 @@ ACTIONS_COMMON :: string.[
     "reset_font_size_to_default",
     "close_current_editor",
     "close_other_editor",
+    "parse_file",
 
     "dump_key_mappings",
     "dump_editor_history",

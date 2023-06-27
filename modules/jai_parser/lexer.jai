@@ -2,7 +2,7 @@
 total_tokens: int;
 
 Token :: struct {
-    
+
     Kind :: enum {
         // ASCII Types...
 
@@ -38,7 +38,7 @@ Token :: struct {
         // @TODO: Do these have correct names?
         LEFT_SHIFT; // <<, POINTER_DEREFERENCE
         RIGHT_SHIFT; // >>
-        LEFT_SHIFT_ASSIGNMENT; // <<= 
+        LEFT_SHIFT_ASSIGNMENT; // <<=
         RIGHT_SHIFT_ASSIGNMENT; // >>=
         UNSIGNED_RIGHT_SHIFT; // >>>
         UNSIGNED_LEFT_SHIFT; // <<<
@@ -73,7 +73,7 @@ Token :: struct {
         KEYWORD_CAST;
         KEYWORD_PUSH_CONTEXT;
         KEYWORD_OPERATOR;
-        KEYWORD_CONTINUE; 
+        KEYWORD_CONTINUE;
         KEYWORD_IMPORT;
         KEYWORD_LOAD;
         KEYWORD_FALSE;
@@ -85,16 +85,16 @@ Token :: struct {
 
         UNKNOWN;
     }
-    
+
     kind: Kind = .UNKNOWN;
 
     file: string;
 
-    l0: int;
-    c0: int;
-    l1: int;
-    c1: int;
-    
+    l0: s32;
+    c0: s32;
+    l1: s32;
+    c1: s32;
+
     here_string_cr: bool; // @TODO: Is this good to have this here?
 
     union {
@@ -118,7 +118,7 @@ create_lexer :: (source: string, file: string) -> Lexer {
     iterator.buffer = source;
 
     lexer: Lexer;
-    
+
     while !end(*iterator) {
         token := parse_next_token(*iterator, *lexer);
         if token.kind == .UNKNOWN continue;
@@ -277,8 +277,8 @@ maybe_eat_token :: (lexer: *Lexer, kind: Token.Kind) -> bool, *Token {
 #scope_module
 
 Iterator :: struct {
-    line := 0;
-    column := 0;
+    line : s32 = 0;
+    column : s32 = 0;
     buffer: string;
     file: string;
 }
@@ -379,7 +379,7 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
         return parse_number(iterator, false);
     }
 
-    // Backtick 
+    // Backtick
     if char == #char "`" {
         next(iterator); // eat `
         lexer.next_backticked = true;
@@ -398,12 +398,12 @@ parse_comment :: (using iterator: *Iterator) -> Token {
     token.c0 = iterator.column;
 
     // Skip the first //
-    next(iterator); 
+    next(iterator);
     multiline := next(iterator) == #char "*";
 
     builder: String_Builder;
     init_string_builder(*builder);
-    
+
     nested_comment: int;
 
     while !end(iterator) {
@@ -423,8 +423,8 @@ parse_comment :: (using iterator: *Iterator) -> Token {
                 }
 
                 nested_comment -= 1;
-            } 
-            
+            }
+
         }
 
         append(*builder, char);
@@ -450,7 +450,7 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
     token.string_value = next_while(iterator,  char => is_identifier_char(char) || is_digit(char));
 
     token.l1 = iterator.line;
-    token.c1 = iterator.column;   
+    token.c1 = iterator.column;
 
     return token;
 }
@@ -465,7 +465,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     init_string_builder(*builder);
 
     escaped_white_space: bool;
-    
+
     while !end(iterator) {
         char := peek(iterator);
         is_ident_valid_char := is_identifier_char(char) || is_digit(char);
@@ -479,7 +479,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
             append(*builder, next(iterator));
 
             if escaped_white_space escaped_white_space = false;
-            
+
             continue;
         }
 
@@ -516,7 +516,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     }
 
     if keyword {
-        enum_value, ok := enum_name_to_value(Token.Kind, keyword); 
+        enum_value, ok := enum_name_to_value(Token.Kind, keyword);
         assert(ok, "invalid keyword %", keyword);
         token.kind = enum_value;
     } else {
@@ -526,7 +526,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
-    
+
     return token;
 }
 
@@ -536,19 +536,19 @@ parse_string :: (using iterator: *Iterator) -> Token {
     token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
-    
+
     next(iterator); // We skip the first "
     escaped := false;
 
     builder: String_Builder;
     init_string_builder(*builder);
-    
+
     while !end(iterator) {
         char := next(iterator);
 
         if escaped {
             append(*builder, char);
-            escaped = false;   
+            escaped = false;
         } else if char == #char "\\" {
             escaped = true;
         } else if char == #char "\"" {
@@ -601,15 +601,15 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
         if char == 0 {
             log_error("Unexpected end of file inside #string");
             break;
-        }   
+        }
 
         if char == here_identifier[0] {
             ok := true;
             for 1..here_identifier.count-1 {
                 if peek(iterator, it) == here_identifier[it] continue;
-                
+
                 ok = false;
-                break;                
+                break;
             }
 
             if ok {
@@ -633,7 +633,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
     token.l0 = iterator.line;
     token.file = iterator.file;
     token.c0 = iterator.column;
-    token.kind = .NUMBER; 
+    token.kind = .NUMBER;
 
     hex := false;
     if !from_dot && peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
@@ -720,16 +720,16 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         if next_char == #char ">" {
             next(iterator);
             token.kind = .ARROW_RIGHT; // ->
-        } 
-        
+        }
+
         if next_char == #char "=" {
             next(iterator);
             token.kind = .MINUS_EQUAL; // -=
-        } 
+        }
 
         if next_char == #char "-" {
             next(iterator);
-            
+
             if peek(iterator) == #char "-" {
                 next(iterator);
                 token.kind = .TRIPLE_MINUS; // ---
@@ -744,12 +744,12 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         next(iterator);
         token.kind = .MOD_EQUAL;
     }
-    
+
     if char == #char "/" && next_char == #char "=" {
         next(iterator);
         token.kind = .DIV_EQUAL;
     }
-    
+
     if char == #char "*" && next_char == #char "=" {
         next(iterator);
         token.kind = .TIMES_EQUAL;
@@ -803,7 +803,7 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         }
 
     }
-    
+
     if char == #char ">" && next_char == #char "=" {
         next(iterator);
         token.kind = .GREATER_EQUAL;
@@ -813,7 +813,7 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         next(iterator);
         token.kind = .BITWISE_EQUAL;
     }
-    
+
     if char == #char "&" && next_char == #char "&" {
         next(iterator);
 
@@ -830,7 +830,7 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         next(iterator);
         token.kind = .PIPE_EQUAL;
     }
-    
+
     if char == #char "|" && next_char == #char "|" {
         next(iterator);
 
@@ -842,13 +842,13 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         }
 
     }
-    
+
     if char == #char "=" {
 
         if next_char == #char ">" {
             next(iterator);
             token.kind = .QUICK_LAMBDA;
-        } 
+        }
 
         if next_char == #char "=" {
             next(iterator);
@@ -860,23 +860,23 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         next(iterator);
         token.kind = .IS_NOT_EQUAL;
     }
-    
+
     if char == #char "$" && next_char == #char "$" {
         next(iterator);
         token.kind = .DOUBLE_DOLLAR;
     }
-    
+
     if char == #char "." && next_char == #char "." {
-        next(iterator);    
+        next(iterator);
         token.kind = .DOUBLE_DOT;
     }
-    
+
     if char == #char ":" {
         if next_char == #char "=" {
             next(iterator);
             token.kind = .DECLARATION_AND_ASSIGN;
         }
-        
+
         if next_char == #char ":" {
             next(iterator);
             token.kind = .CONSTANT_DECLARATION;

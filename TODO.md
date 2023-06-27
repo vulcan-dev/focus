@@ -1,5 +1,9 @@
 # Mine
 
+- [ ] Update parser to use File_Info instead of string path
+- [ ] FIX Ctrl-X!!!!
+- [ ] Fix ctrl-tab
+
 - [.] eye
     - [x] check for line length
     - [x] jump to looked-at editor, not active editor

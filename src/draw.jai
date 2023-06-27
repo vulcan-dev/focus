@@ -1120,7 +1120,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             coords := cursor_coords[main_cursor].pos;
             //#if DEBUG
-                text := tprint("Pos:%  Line: %  Col: %", cursors[main_cursor].pos, coords.line + 1, coords.col + 1);
+                text := tprint("Pos: %  Line: %  Col: %", cursors[main_cursor].pos, coords.line + 1, coords.col + 1);
             //else
             //    text := tprint("Line: %  Col: %", coords.line + 1, coords.col + 1);
             width = xx Simp.prepare_text(font_ui_bold, text);

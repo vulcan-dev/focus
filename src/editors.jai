@@ -173,6 +173,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_to_previous_buffer;          move_to_previous_buffer             ();
         case .move_to_next_buffer;              move_to_next_buffer                 ();
         case .jump_to_definition;               jump_to_definition                  (editor, buffer); keep_selection = true;
+        case .parse_file;                       parse_file                          (editor, buffer);
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
@@ -1668,6 +1669,12 @@ jump_to_definition :: (editor: *Editor, buffer: Buffer) {
         //case .C;
         //case .CSharp;
     }
+}
+
+parse_file :: (editor: *Editor, buffer: Buffer) {
+    if buffer.lang != .Jai  return;
+
+    jai_parse_file(buffer.file);
 }
 
 is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64, at_end_of_line: bool) -> bool {

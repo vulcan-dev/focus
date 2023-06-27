@@ -11,8 +11,8 @@ TRACY_PROFILE :: false;
 
     options := get_build_options(w);
     options.output_executable_name = "jai_parser";
-    options.output_path = "./bin";   
-    options.use_natvis_compatible_types = true;   
+    options.output_path = "./bin";
+    options.use_natvis_compatible_types = true;
 
     set_optimization(*options, .OPTIMIZED);
 
@@ -43,7 +43,7 @@ TRACY_PROFILE :: false;
     compiler_begin_intercept(w);
 
     if tracy && tracy.add_source tracy.add_source(tracy);
-    add_build_file("./src/main.jai", w); 
+    add_build_file("./src/cmd.jai", w);
 
     message_loop(w, tracy);
 

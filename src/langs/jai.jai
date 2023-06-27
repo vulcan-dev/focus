@@ -94,7 +94,45 @@ jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
     }
 }
 
+jai_parse_file :: (file_info: File_Info, files: *Table(string, []*Node) = null) {
+    /*
+    if !files  files = *jai_files;
+
+    path_without_filename := file_info.path;
+    path := file_info.full_path;
+
+    parser : Parser(Node_Visit_Data);
+    parser.user_data = .{
+        files=files,
+        path_without_filename=path_without_filename,
+    };
+    parser.node_visit = node_visit;
+    parser.lexer = *create_lexer(read_entire_file(path), path);
+
+    nodes: [..]*Node;
+
+    table_set(*jai_files, path, nodes);
+
+    while !end(parser.lexer) {
+        node := parse(*parser, null);
+        if !node continue;
+        array_add(*nodes, node);
+    }
+
+    table_set(*jai_files, path, nodes);
+
+    for file, path: jai_files {
+        print("%:\n", path);
+        for node: file
+            print("%\n", node.*);
+        print("\n");
+    }
+    */
+}
+
+
 #scope_file
+
 
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     t = eat_white_space(t, max_t);
@@ -762,24 +800,74 @@ declaration_pos_for_word :: (path: string, word_pos: s32, word: string, v : Vect
 
 jai_files : Table(string, []*Node);
 
-jai_parse_file :: (path: string) {
-    parser : Parser(void);
-    parser.lexer = *create_lexer(read_entire_file(path), path);
+//JAI_PATH :: #run find_current_jai_path();
+//JAI_MODULES_PATH :: #run tprint("%/modules", JAI_PATH);
 
-    nodes: [..]*Node;
+Node_Visit_Data :: struct {
+    path_without_filename: string;
+    files: *Table(string, []*Node);
+}
+/*
+node_visit :: (node: *Node, data: Node_Visit_Data) {
+    if node.kind == .DIRECTIVE_IMPORT {
+        _import := cast(*Directive_Import) node;
 
-    table_set(*jai_files, path, nodes);
+        path: string;
 
-    while !end(parser.lexer) {
-        node := parse(*parser, null);
-        if !node continue;
-        array_add(*nodes, node);
+        if _import.import_kind == {
+            case .MODULE;
+                module_path := tprint("%/%", JAI_MODULES_PATH, _import.module);
+                path = get_module_entry(module_path);
+            case .FILE;
+                path = tprint("%/%", data.path_without_filename, _import.module);
+            case .DIR;
+                path = tprint("%/%", data.path_without_filename, get_module_entry(_import.module));
+            case .STRING;
+                // @TODO: Do we wanna parse the string here?
+        }
+
+        jai_parse_file(path, data.files); // @TODO: Run this in another thread?
     }
 
-    table_set(*jai_files, path, nodes);
-
-    print("%\n", jai_files);
+    if node.kind == .DIRECTIVE_LOAD {
+        _load := cast(*Directive_Load) node;
+        load_relative_path := tprint("%/%", data.path_without_filename, _load.file);
+        jai_parse_file(load_relative_path, data.files); // @TODO: Run this in another thread?
+    }
 }
 
+get_module_entry :: (root: string) -> string {
+    uri := tprint("%/module.jai", root);
+    if !file_exists(uri) {
+        uri = tprint("%.jai", root);
+    }
+
+    return uri;
+}
+
+find_current_jai_path :: () -> string {
+
+    remove_trailing_slash :: (path: string) -> string {
+        result := path;
+        if path[path.count - 1] == #char "/" result.count -= 1;
+        return result;
+    }
+
+    Compiler :: #import "Compiler";
+    options := Compiler.get_build_options();
+    for options.import_path {
+        print("Module: %\n", it);
+
+        if find_index_from_left(to_lower_copy(it), "jai/modules") != -1 {
+            modules_path := remove_trailing_slash(it);
+            base_path := remove_trailing_slash(path_strip_filename(modules_path));
+            log("% -> %", modules_path, base_path);
+            return base_path;
+        }
+    }
+
+    return "";
+}
+*/
 #import "jai_parser";
 #import "Hash_Table";
