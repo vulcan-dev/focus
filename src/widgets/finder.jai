@@ -224,6 +224,7 @@ start_new_search :: (force := false) {
     if request.needle == to_string(input.text) && !force return;  // needle hasn't changed, no need to repeat
 
     request.case_sensitive = case_sensitive;
+    request.ignore_whitespace = ignore_whitespace;
     request.whole_word     = whole_word;
 
     reset_search_request(*request, new_needle = to_string(input.text));
@@ -243,6 +244,7 @@ start_new_search :: (force := false) {
         task.buffer_start_index = cast(s32) buffer_start_index;
         task.buffer_end_index   = cast(s32) min(buffer_start_index + buffers_per_thread - 1, open_buffers.count - 1);
         task.case_sensitive = request.case_sensitive;
+        task.ignore_whitespace = request.ignore_whitespace;
         task.whole_word = request.whole_word;
 
         add_work(*thread_group, task, needle);
@@ -275,9 +277,9 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
         offset := 0;
         while true {
             if case_sensitive {
-                offset = inline bmh_find_index_from_left(contents, needle, start_index = offset, skip_table, case_sensitive = true);
+                offset = inline bmh_find_index_from_left(contents, needle, start_index = offset, skip_table, case_sensitive = true, ignore_whitespace = ignore_whitespace);
             } else {
-                offset = inline bmh_find_index_from_left(contents, needle, start_index = offset, skip_table, case_sensitive = false);
+                offset = inline bmh_find_index_from_left(contents, needle, start_index = offset, skip_table, case_sensitive = false, ignore_whitespace = ignore_whitespace);
             }
             if offset < 0 break;
 
@@ -299,6 +301,7 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
 
     return .CONTINUE;  // we want to reuse this thread for future searches
 }
+
 
 reset_search_request :: (using request: *Search_Request, new_needle: string) { //@nocheckin: add whole_word / case sensitive parameters
     id += 1;
@@ -351,6 +354,8 @@ Finder :: struct {
     results: [..] Search_Result;
 
     case_sensitive := true;
+    ignore_whitespace := ignore_whitespace_in_search;
+
     whole_word: bool;
 
     selected: s64;
@@ -369,6 +374,8 @@ Finder :: struct {
     need_to_refresh_results: bool;  // when a buffer is modified and we have some search results, we have to search again,
                                     // otherwise the search results may point to an offset which no longer exists or is invalid
 }
+
+ignore_whitespace_in_search :: true;
 
 #scope_file
 
@@ -390,6 +397,7 @@ Search_Request :: struct {
     skip_table: [256] s32;
     in_progress: bool;
     case_sensitive: bool;
+    ignore_whitespace: bool;
     whole_word: bool;
 }
 
@@ -399,6 +407,7 @@ Search_Task :: struct {
     needle: string;
     skip_table: [] s32;
     case_sensitive: bool;
+    ignore_whitespace: bool;
     whole_word: bool;
 
     // Will search in these buffers

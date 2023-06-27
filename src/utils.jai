@@ -220,17 +220,44 @@ bmh_prepare_skip_table :: (needle: string, case_sensitive: bool) -> [256] s32 {
     return skip_table;
 }
 
-bmh_find_index_from_left :: (s: string, needle: string, start_index := 0, skip_table: [] s32, $case_sensitive: bool) -> s64 {
+equal_nowhitespace :: (haystack: string, needle: string, $case_sensitive: bool) -> bool {
+    h := 0;
+    i := 0;
+
+    while i < needle.count && h < haystack.count {
+        while i < needle.count && needle[i] == #char " "  i += 1;
+        if i >= needle.count  return true;
+
+        while h < haystack.count && haystack[h] == #char " "  h += 1;
+        if h >= haystack.count  return false;
+
+        if needle[i] != haystack[h]  return false;
+        i += 1;
+        h += 1;
+    }
+
+    return i >= needle.count;
+}
+
+bmh_find_index_from_left :: (s: string, needle: string, start_index := 0, skip_table: [] s32, $case_sensitive: bool, ignore_whitespace: bool) -> s64 {
     i := start_index;
     last_i := s.count - needle.count;
+    if ignore_whitespace  skip_table[#char " "] = 1;
     while i <= last_i {
-        current := to_string(s.data + i, needle.count);
-        #if case_sensitive {
-            if current == needle return i;
+        if ignore_whitespace {
+            current := to_string(s.data + i, s.count - i);
+            if equal_nowhitespace(current, needle, case_sensitive)  return i;
             i += skip_table[s[i + needle.count - 1]];
-        } else {
-            if equal_nocase(current, needle) return i;
-            i += skip_table[to_lower(s[i + needle.count - 1])];
+        }
+        else {
+            current := to_string(s.data + i, needle.count);
+            #if case_sensitive {
+                if current == needle return i;
+                i += skip_table[s[i + needle.count - 1]];
+            } else {
+                if equal_nocase(current, needle) return i;
+                i += skip_table[to_lower(s[i + needle.count - 1])];
+            }
         }
     }
     return -1;

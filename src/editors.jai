@@ -803,9 +803,9 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
     i := 0;
     while true {
         if case_sensitive {
-            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = true);
+            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = true, ignore_whitespace = ignore_whitespace);
         } else {
-            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = false);
+            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = false, ignore_whitespace = ignore_whitespace);
         }
         if offset < 0 break;
 
@@ -2691,6 +2691,7 @@ Search_Bar :: struct {
     selected_result: s64 = -1;
     search_point_offset: s32;  // the point used to determine the next search result. Fixed so that we can set cursor without jumping around
     case_sensitive := true;
+    ignore_whitespace := ignore_whitespace_in_search;
     whole_word: bool;
 
     original_cursor_position: Cursor.State;  // remember main cursor position so we can go back to it on Esc
