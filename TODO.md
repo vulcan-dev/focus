@@ -1,8 +1,7 @@
 # Mine
 
+- [ ] setting to ignore whitespace in search
 - [ ] Update parser to use File_Info instead of string path
-- [ ] FIX Ctrl-X!!!!
-- [ ] Fix ctrl-tab
 
 - [.] eye
     - [x] check for line length
@@ -17,6 +16,8 @@
 - [ ] stupid goto definition
 - [?] make copypaste work with multicursor (multi->multi, across buffers)
 
+- [x] Fix Ctrl-X!!!!
+- [x] Fix ctrl-tab
 - [x] go to matching brace
 - [x] autoindent
 - [x] autobraceclose

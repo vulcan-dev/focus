@@ -1078,12 +1078,16 @@ make_editor_active :: (editor_id: s64) {
 
 make_buffer_active :: (buffer_id: s64) {
     editor_id, ok := table_find(*latest_editor_for_buffer, buffer_id);
-    if !ok return;
+    if !ok || editors.active == editor_id  return;
 
-    if editors.active == editors.left
-        editors.left = editor_id;
-    else if editors.active == editors.right
-        editors.right = editor_id;
+    if editors.active == editors.left {
+        if editors.right != editor_id
+            editors.left = editor_id;
+    }
+    else if editors.active == editors.right {
+        if editors.left != editor_id
+            editors.right = editor_id;
+    }
     make_editor_active(editor_id);
 }
 
@@ -1835,6 +1839,35 @@ delete_word_right_no_underscore :: (editor: *Editor, buffer: *Buffer) {
     context.underscore_is_part_of_word = true;
 }
 
+delete_selection :: (editor: *Editor, buffer: *Buffer) {
+    // NOTE: we don't have to worry about a cursor with no selection being immediately next
+    //       to the non-cursor end of another cursor's selection (thanks to organise_cursors),
+    //       so it should be safe to delete at least one character to the left of every cursor if there is one
+    range_per_cursor := NewArray(editor.cursors.count, Offset_Range, initialized = false, allocator = temp);
+    for cursor : editor.cursors {
+        if has_selection(cursor)
+            range_per_cursor[it_index] = get_selection(cursor);
+        else
+            range_per_cursor[it_index] = .{ start = cursor.pos, end = cursor.pos };
+    }
+
+    offset_delta := 0;
+    for * cursor : editor.cursors {
+        range := range_per_cursor[it_index];
+        range.start -= xx offset_delta;
+        range.end   -= xx offset_delta;
+
+        delete_range(buffer, range);
+
+        cursor.pos = range.start;
+        cursor.col_wanted = -1;
+
+        offset_delta += (range.end - range.start);
+    }
+
+    editor.cursor_moved = .unimportant;
+}
+
 delete_left_char :: (editor: *Editor, buffer: *Buffer) {
     // NOTE: we don't have to worry about a cursor with no selection being immediately next
     //       to the non-cursor end of another cursor's selection (thanks to organise_cursors),
@@ -2353,7 +2386,7 @@ copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false) 
         clipboard.text = combined_str;  // now it owns it
     }
 
-    if cut delete_line(editor, buffer);
+    if cut delete_selection(editor, buffer);
 }
 
 paste_from_clipboard :: (editor: *Editor, buffer: *Buffer) {
