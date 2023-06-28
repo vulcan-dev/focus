@@ -222,6 +222,12 @@ monitor_enum_proc :: (hMonitor: HMONITOR, hdc: HDC, rect: *RECT, data: LPARAM) -
     monitor.right  = rect.right;
     monitor.bottom = rect.bottom;
 
+    monitorInfo: MONITORINFO;
+    monitorInfo.cbSize = size_of(MONITORINFO);
+
+    GetMonitorInfoW(hMonitor, *monitorInfo);
+    monitor.primary = !!(monitorInfo.dwFlags & 0x1);
+
     new_context : Context;
     push_context new_context {
         array_add(*monitors, monitor);
@@ -230,18 +236,12 @@ monitor_enum_proc :: (hMonitor: HMONITOR, hdc: HDC, rect: *RECT, data: LPARAM) -
     return xx true;
 }
 
-update_window_size :: (w: s64, h: s64) {
-    window_width  = w;
-    window_height = h;
-    Simp.update_window(window);
-    screen = make_rect(0, 0, window_width, window_height);
-}
-
 Monitor :: struct {
     left   : int;
     top    : int;
     right  : int;
     bottom : int;
+    primary: bool;
 };
 
 monitors : [..] Monitor;

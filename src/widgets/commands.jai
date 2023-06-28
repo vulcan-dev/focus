@@ -155,6 +155,8 @@ commands := #run Command.[
 
     .{ .close_current_editor,                               "Close File",                         0, .Single },
     .{ .close_other_editor,                                 "Close Other File",                   0, .Double },
+    .{ .close_left_editor,                                  "Close Left File",                    0, .Double },
+    .{ .close_right_editor,                                 "Close Right File",                   0, .Double },
 
     .{ .save,                                               "Save",                               0, .Single },
     .{ .save_all,                                           "Save All",                           0, .Single },
@@ -175,8 +177,9 @@ commands := #run Command.[
     .{ .center_viewport_on_cursor,                          "Center View On Cursor",              0, .Single },
     .{ .move_cursor_to_viewport_center,                     "Move Cursor To Screen Center",       0, .Single },
     .{ .remove_additional_cursors,                          "Remove Additional Cursors",          0, .Single },
-    .{ .move_to_previous_editor_history,                    "Move To Previous Cursor Position",   0, .Single },
-    .{ .move_to_next_editor_history,                        "Move To Next Cursor Position",       0, .Single },
+
+    .{ .move_to_previous_editor_history,                    "Move To Previous Cursor Position",   0, .None },
+    .{ .move_to_next_editor_history,                        "Move To Next Cursor Position",       0, .None },
     .{ .move_to_previous_buffer,                            "Move To Previous Buffer",            0, .Single },
     .{ .move_to_next_buffer,                                "Move To Next Buffer",                0, .Single },
 
@@ -188,6 +191,8 @@ commands := #run Command.[
     .{ .switch_to_other_editor,                             "Switch To Other Pane",               0, .Double },
 
     .{ .duplicate_editor,                                   "Duplicate File On The Side",         0, .Single },
+    .{ .duplicate_editor_to_the_left,                       "Duplicate File To The Left",         0, .Single },
+    .{ .duplicate_editor_to_the_right,                      "Duplicate File To The Right",        0, .Single },
 
     .{ .move_editor_to_the_left,                            "Move Pane To The Left",              0, .Double },
     .{ .move_editor_to_the_right,                           "Move Pane To The Right",             0, .Double },

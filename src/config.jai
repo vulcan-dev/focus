@@ -1,4 +1,4 @@
-load_global_config :: () -> success: bool, changed: bool, there_were_warnings: bool {
+load_global_config :: (fallback_to_default_on_failure := false) -> success: bool, changed: bool, there_were_warnings: bool {
     global_config_path = sprint("%/global.focus-config", config_dir);
 
     if !file_exists(global_config_path) {
@@ -8,6 +8,10 @@ load_global_config :: () -> success: bool, changed: bool, there_were_warnings: b
     }
 
     success, changed, there_were_warnings := load_and_merge_config(global_config_path, into = Config.{}, hash = *global_config_hash);
+    if !success && fallback_to_default_on_failure {
+        config = DEFAULT_CONFIG;
+        saved_global_config = config;
+    }
     if success then saved_global_config = config;
 
     return success, changed, there_were_warnings;
@@ -81,13 +85,6 @@ refresh_config :: (path: string) {
 
     dont_ignore_next_window_resize = true;
     platform_apply_config(*config.platform);
-
-    if current_editor_history_size < config.settings.editor_history_size && editor_history.head < editor_history.tail {
-         editor_history.head    = 0;
-         editor_history.tail    = 0;
-         editor_history.current = 0;
-         current_editor_history_size = config.settings.editor_history_size;
-    }
 }
 
 is_our_config_file :: (path: string) -> bool {
@@ -179,15 +176,34 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> succes
     CODE_COLOR_MAP = refresh_code_color_map();
 
     // Make sure the values are within the acceptable range
+    clamp_warnings := false;
+
     TAB_SIZE = clamp(cast(s32) config.settings.tab_size, 1, 100);  // be reasonable (though 100 is unreasonable)
-    config.settings.line_height_scale_percent = clamp(config.settings.line_height_scale_percent, 50, 1000);
+    if config.settings.tab_size != TAB_SIZE {
+        add_user_warning(tprint("Tab size clamped to %", TAB_SIZE));
+        clamp_warnings = true;
+    }
+
+    line_height_scale := config.settings.line_height_scale_percent;
+    config.settings.line_height_scale_percent = clamp(line_height_scale, 50, 1000);
+    if config.settings.line_height_scale_percent != line_height_scale {
+        add_user_warning(tprint("Line height scale clamped to %", config.settings.line_height_scale_percent));
+        clamp_warnings = true;
+    }
+
+    editor_history_size := config.settings.editor_history_size;
+    config.settings.editor_history_size = clamp(editor_history_size, 4, 1024 * 1024);
+    if config.settings.editor_history_size != editor_history_size {
+        add_user_warning(tprint("Editor history size clamped to %", config.settings.editor_history_size));
+        clamp_warnings = true;
+    }
 
     // Must do after the validation
     init_fonts_and_dependent_things();
 
     if !file_is_watched(file_path) start_watching_file(file_path);
 
-    return true, changed, warnings.count > 0;
+    return true, changed, warnings.count > 0 || clamp_warnings;
 }
 
 merge_configs :: (dst: *Config, parsed: Parsed_Config) {
@@ -381,6 +397,8 @@ EXAMPLE_PROJECT_FILE_DATA :: #run read_entire_file(EXAMPLE_PROJECT_CONFIG_NAME);
 }
 EXAMPLE_PROJECT_CONFIG_NAME :: "example-project.focus-config";
 
+
+#scope_export
 
 DEFAULT_CONFIG :: #run -> Config {
     parsed_config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA);

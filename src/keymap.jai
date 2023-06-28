@@ -318,9 +318,10 @@ ACTIONS_COMMON :: string.[
     "close_current_editor",
     "close_other_editor",
     "parse_file",
+    "close_left_editor",
+    "close_right_editor",
 
     "dump_key_mappings",
-    "dump_editor_history",
 ];
 
 ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
@@ -344,6 +345,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "save_all",
     "toggle_comment",
     "jump_to_matching_bracket",
+    "toggle_block_comment",
     "select_line",
     "scroll_viewport_up",
     "scroll_viewport_up_fast",
@@ -365,6 +367,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "switch_to_right_editor",
     "switch_to_other_editor",
     "duplicate_editor",
+    "duplicate_editor_to_the_left",
+    "duplicate_editor_to_the_right",
     "move_editor_to_the_left",
     "move_editor_to_the_right",
     "create_new_file",

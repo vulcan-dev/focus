@@ -23,7 +23,7 @@ main :: () {
     if !projects_dir_existed then write_entire_file(tprint("%/Example Project.focus-config", projects_dir), EXAMPLE_PROJECT_FILE_DATA);
 
     init_file_watcher();
-    load_global_config();
+    load_global_config(fallback_to_default_on_failure = true);
     init_workspace();
     init_buffers();
 
@@ -146,13 +146,11 @@ main :: () {
         screen_with_title_bar.h += 200;  // should be enough to include the title bar
 
         #if OS != .WINDOWS {
-            #if OS == .MACOS {
-                if !Input.input_application_has_focus {
-                    // Avoid changing the cursor when the window is not in Focus.
-                    // This also fixes the Cmd+Tab cursor-spawning issue where the window still thinks Cmd is held down.
-                    sleep_milliseconds(1);
-                    continue;
-                }
+            if !Input.input_application_has_focus {
+                // Avoid changing the cursor when the window is not in Focus.
+                // This also fixes the Cmd+Tab cursor-spawning issue where the window still thinks Cmd is held down.
+                sleep_milliseconds(1);
+                continue;
             }
 
             // Try to avoid hot-looping on Linux/macOS
@@ -287,6 +285,7 @@ main :: () {
 
         // TODO:
         // maybe_save_editor_state_into_session();
+
         maybe_save_editor_history();
 
         if should_reload_workspace {
@@ -302,7 +301,6 @@ main :: () {
 
         if cast(Time) get_time() - frame_time <= QUICK_FRAME_DT {
             // It should be ok to sleep a bit after a quick frame to avoid pegging the core.
-            // NOTE: I tried vsync but for some reason it felt super bad - didn't figure out exactly why
             sleep_milliseconds(2);
         }
     }
@@ -340,7 +338,9 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_commands;                                    show_commands_dialog();                             return true;
 
         case .dump_key_mappings;                                dump_key_mappings();                                return true;
-        case .dump_editor_history;                              dump_editor_history();                              return true;
+
+        case .move_to_previous_editor_history;                  move_to_previous_editor_history();                  return true;
+        case .move_to_next_editor_history;                      move_to_next_editor_history();                      return true;
 
         // TODO: search_in_buffer
         case .search_in_project;
@@ -533,6 +533,13 @@ ctrl_or_cmd_pressed :: inline () -> bool {
     } else {
         return key_state(.CMD) & .DOWN != 0;
     }
+}
+
+update_window_size :: (w: s64, h: s64) {
+    window_width  = w;
+    window_height = h;
+    Simp.update_window(window);
+    screen = make_rect(0, 0, window_width, window_height);
 }
 
 // Important directories
