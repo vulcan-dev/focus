@@ -32,6 +32,10 @@ main :: () {
         window_y = 0;
         window_width = 1549;
         window_height = 1048;
+        #if DEBUG {
+            window_width /= 2;
+            window_height /= 2;
+        }
     }
     else {
         window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);

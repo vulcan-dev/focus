@@ -57,10 +57,44 @@ VERSION      :: "%";
 RELEASE_DATE :: "%";
 STRING, VERSION, RELEASE_DATE), w);
 
+    config_refresh_procs : [..] string;
+    inserted_config_refresh_procs := false;
+
     while true {
         message := compiler_wait_for_message();
         if message.workspace != w continue;
-        if message.kind == .COMPLETE break;
+
+        if message.kind == {
+            case .TYPECHECKED;
+            typechecked := cast(*Message_Typechecked) message;
+            for tc: typechecked.procedure_headers {
+                header := tc.expression;
+                if has_note(header, "OnConfigRefresh") {
+                    //print("Found OnConfigRefresh proc: %\n", header);
+                    array_add(*config_refresh_procs, header.name);
+                }
+            }
+
+            case .PHASE;
+            phase := cast(*Message_Phase) message;
+            if phase.phase == .TYPECHECKED_ALL_WE_CAN {
+                if inserted_config_refresh_procs  continue;
+                inserted_config_refresh_procs = true;
+                builder : String_Builder;
+                append(*builder, "run_config_refresh_hooks :: () {\n");
+                for config_refresh_procs {
+                    append(*builder, "    ");
+                    append(*builder, it);
+                    append(*builder, "();\n");
+                }
+                append(*builder, "}\n");
+                add_build_string(builder_to_string(*builder), message.workspace);
+            }
+
+
+            case .COMPLETE;
+                break;
+        }
     }
 
     compiler_end_intercept(w);
@@ -105,6 +139,11 @@ STRING, VERSION, RELEASE_DATE), w);
         #import "Process";
         #import "File";
     }
+}
+
+has_note :: (header: *Code_Procedure_Header, note: string) -> bool {
+    for header.notes  if it.text == note  return true;
+    return false;
 }
 
 #import "Compiler";

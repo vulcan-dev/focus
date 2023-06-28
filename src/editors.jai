@@ -701,7 +701,7 @@ open_search_bar :: (using editor: *Editor, buffer: Buffer, requested_mode: Searc
     using editor.search_bar;
     active = true;
     mode = requested_mode;
-    ignore_whitespace = config.settings.ignore_whitespace_in_search;
+    ignore_whitespace = config.settings.ignore_whitespace_in_search_bar;
 
     // If there was some text selected that doesn't span more than one line, use it for search
     if cursors.count == 1 {

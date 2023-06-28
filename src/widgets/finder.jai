@@ -10,9 +10,14 @@ init_finder :: () {
 
     start(*thread_group);
 
-    finder.ignore_whitespace = config.settings.ignore_whitespace_in_search;
+    update_finder_from_config();
+
     finder.initted = true;
 }
+
+update_finder_from_config :: () {
+    finder.ignore_whitespace = config.settings.ignore_whitespace_in_finder;
+} @OnConfigRefresh;
 
 deinit_finder :: () {
     if finder.initted shutdown(*thread_group);

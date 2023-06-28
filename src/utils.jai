@@ -221,8 +221,10 @@ bmh_prepare_skip_table :: (needle: string, case_sensitive: bool) -> [256] s32 {
 }
 
 equal_nowhitespace :: (haystack: string, needle: string, $case_sensitive: bool) -> bool {
-    h := 0;
     i := 0;
+    h := 0;
+
+    if needle && haystack && needle[0] != haystack[0]  return false;
 
     while i < needle.count && h < haystack.count {
         while i < needle.count && needle[i] == #char " "  i += 1;

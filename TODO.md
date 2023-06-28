@@ -1,11 +1,5 @@
 # Mine
 
-- [.] Show navigate dialog on splash
-- [x] Set good default window location
-- [ ] ???
-- [ ] split ignore whitespace into finder and search bar options
-- [ ] add hook system for settings
-
 - [.] eye
     - [x] check for line length
     - [x] jump to looked-at editor, not active editor
@@ -18,8 +12,12 @@
 - [ ] search: order declaration first
 - [ ] stupid goto definition
 - [?] make copypaste work with multicursor (multi->multi, across buffers)
-- [.] setting to ignore whitespace in search (currently enabled, need to add setting for it though)
+- [.] setting to ignore whitespace in search
+    - [ ] improve by making a space be treated as .* while in this mode
 
+- [x] add hook system for settings
+- [x] Show navigate dialog on splash
+- [x] Set good default window location
 - [x] Fix Ctrl-X!!!!
 - [x] Fix ctrl-tab
 - [x] go to matching brace
