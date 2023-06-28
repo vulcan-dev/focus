@@ -1,7 +1,7 @@
 # Mine
 
-- [ ] setting to ignore whitespace in search
-- [ ] Update parser to use File_Info instead of string path
+- [ ] Show navigate dialog on splash
+- [ ] Set good default location
 
 - [.] eye
     - [x] check for line length
@@ -15,6 +15,7 @@
 - [ ] search: order declaration first
 - [ ] stupid goto definition
 - [?] make copypaste work with multicursor (multi->multi, across buffers)
+- [.] setting to ignore whitespace in search (currently enabled, need to add setting for it though)
 
 - [x] Fix Ctrl-X!!!!
 - [x] Fix ctrl-tab

@@ -304,6 +304,7 @@ Workspace :: struct {
 Settings :: struct {
     maximize_on_start                   := false;
     open_on_the_biggest_monitor         := true;
+    open_on_monitor_one                 := false;
     cursor_as_block                     := true;
     highlight_selection_occurrences     := true;
     disable_that_annoying_paste_effect  := false;
@@ -348,6 +349,7 @@ Setting :: struct {
 SETTINGS :: Setting.[
     .{ "maximize_on_start",                   .boolean },
     .{ "open_on_the_biggest_monitor",         .boolean },
+    .{ "open_on_monitor_one",                 .boolean },
     .{ "cursor_as_block",                     .boolean },
     .{ "highlight_selection_occurrences",     .boolean },
     .{ "disable_that_annoying_paste_effect",  .boolean },

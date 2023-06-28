@@ -27,7 +27,15 @@ main :: () {
     init_workspace();
     init_buffers();
 
-    window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
+    if config.settings.open_on_monitor_one {
+        window_x = 1913;
+        window_y = 0;
+        window_width = 1549;
+        window_height = 1048;
+    }
+    else {
+        window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
+    }
 
     window_generic_title = ifx DEBUG then "Focus (debug mode)" else "Focus";
     platform_create_window();
