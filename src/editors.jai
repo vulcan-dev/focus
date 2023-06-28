@@ -3028,7 +3028,7 @@ maybe_save_editor_history :: () {
     frames[current] = frame;
 }
 
-frames_are_mergeable :: (a: Editor_History_Frame, b: Editor_History_Frame) -> bool {
+frames_are_mergable :: (a: Editor_History_Frame, b: Editor_History_Frame) -> bool {
     return a.cursor_movement <= .unimportant
         && a.cursor_movement == b.cursor_movement
         && a.editor_state == b.editor_state;
@@ -3057,8 +3057,13 @@ move_to_next_editor_history :: () {
 }
 
 
-move_to_editor_history_frame :: (frame: Editor_History_Frame) {
-    set_editor_panes(frame.left_editor_id, frame.right_editor_id, frame.active_editor_id);
+move_to_editor_history_frame :: (frame: Editor_History_Frame, old_frame: Editor_History_Frame) {
+    editors = frame.editor_state;
+    if editors.active < 0 || editors.layout == .None {
+        update_window_title();  // reset
+        return;
+    }
+
     editor := *open_editors[editors.active];
 
     update_window_title(editor.buffer_id);
@@ -3106,6 +3111,7 @@ move_to_editor_history_frame :: (frame: Editor_History_Frame) {
 
     put_cursor_in_valid_spot(cursor, open_buffers[editor.buffer_id]);
 }
+
 
 move_to_previous_buffer :: () {
     if buffer_order.count <= 1  return;
