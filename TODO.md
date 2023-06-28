@@ -10,11 +10,11 @@
 - [.] theme
 - [ ] add MD icons
 - [ ] search: order declaration first
-- [ ] stupid goto definition
 - [?] make copypaste work with multicursor (multi->multi, across buffers)
-- [.] setting to ignore whitespace in search
-    - [ ] improve by making a space be treated as .* while in this mode
+- [ ] stupid goto definition
 
+- [x] setting to ignore whitespace in search
+    - [x] improve by making a space be treated as .* while in this mode
 - [x] add hook system for settings
 - [x] Show navigate dialog on splash
 - [x] Set good default window location
