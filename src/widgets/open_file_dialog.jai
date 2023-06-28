@@ -66,7 +66,8 @@ show_open_file_dialog :: (mode: Open_File_Dialog.Mode, from_root := false) {
         // Derive the path chunks from the current open file
         editor, buffer := get_active_editor_and_buffer();
         if active_global_widget == .editors && buffer && buffer.has_file then set_path_chunks_from_file(buffer.file.full_path);
-    } else {
+    }
+    else {
         clear_path_chunks();
     }
 

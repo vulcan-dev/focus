@@ -1,7 +1,10 @@
 # Mine
 
-- [ ] Show navigate dialog on splash
-- [ ] Set good default location
+- [.] Show navigate dialog on splash
+- [x] Set good default window location
+- [ ] ???
+- [ ] split ignore whitespace into finder and search bar options
+- [ ] add hook system for settings
 
 - [.] eye
     - [x] check for line length

@@ -59,6 +59,8 @@ open_selected_project :: () {
             show_unsaved_buffers_dialog(.reload_workspace);
             should_reload_workspace = false;
         }
+        if editors.layout == .None
+            show_open_file_dialog(.navigate);
     } else {
         add_user_error(tprint("Couldn't load project config for %", entry.name), dismiss_in_seconds = 10);
     }

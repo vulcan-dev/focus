@@ -96,11 +96,13 @@ draw_frame :: () {
     Simp.swap_buffers(window);
 }
 
+left_area : Rect;
+
 draw_welcome_screen :: (main_area: Rect) {
     ui_id := get_ui_id_from_loc();
 
-    right_area, left_area := cut_right(main_area, main_area.w / GOLDEN_RATIO);
-    logo_area, info_area  := cut_top(left_area, left_area.h / GOLDEN_RATIO);
+    right_area, left_area= := cut_right(main_area, main_area.w / GOLDEN_RATIO);
+    logo_area, info_area := cut_top(left_area, left_area.h / GOLDEN_RATIO);
 
     logo_rect := logo_area;
     logo_rect.w = min(logo_area.w, logo_area.h) / GOLDEN_RATIO;
@@ -1287,7 +1289,11 @@ draw_open_file_dialog :: () {
 
     // Figure out the dialog box size
     box_rect: Rect = ---;
-    {
+    if editors.layout == .None { // on welcome screen
+        box_rect = left_area;
+        draw_rounded_rect(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
+    }
+    else {
         if width_percentage != width_anim.target {
             width_percentage = get_animation_value(width_anim);
             redraw_requested = true;
@@ -1298,8 +1304,8 @@ draw_open_file_dialog :: () {
         y := floor(clamp(100 * dpi_scale, 0, (screen.h - height) / 2));
         box_rect = make_rect(x, screen.h - height - y, width, height);
         if !is_valid(box_rect) return;
+        draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
     }
-    draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
 
     maybe_set_hot_or_active(ui_id, box_rect, .NORMAL);
 
