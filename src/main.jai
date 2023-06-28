@@ -33,8 +33,8 @@ main :: () {
         window_width = 1549;
         window_height = 1048;
         #if DEBUG {
-            window_width /= 2;
-            window_height /= 2;
+            window_width = window_width * 2 / 3;
+            window_height = window_height * 2 / 3;
         }
     }
     else {

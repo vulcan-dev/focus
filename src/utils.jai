@@ -227,8 +227,14 @@ equal_nowhitespace :: (haystack: string, needle: string, $case_sensitive: bool) 
     if needle && haystack && needle[0] != haystack[0]  return false;
 
     while i < needle.count && h < haystack.count {
-        while i < needle.count && needle[i] == #char " "  i += 1;
-        if i >= needle.count  return true;
+        if needle[i] == #char " " {
+            i += 1;
+            while i < needle.count && needle[i] == #char " "  i += 1;
+            if i >= needle.count  return true;
+            n := needle[i];
+            while h < haystack.count && haystack[h] != n && haystack[h] != #char " "  h += 1;
+            if h >= haystack.count  return false;
+        }
 
         while h < haystack.count && haystack[h] == #char " "  h += 1;
         if h >= haystack.count  return false;

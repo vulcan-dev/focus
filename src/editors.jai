@@ -712,8 +712,7 @@ open_search_bar :: (using editor: *Editor, buffer: Buffer, requested_mode: Searc
         }
     }
 
-    // Select text when opening
-    input.cursor.sel = 0;
+    input.cursor.sel = xx input.text.count;
     input.cursor.pos = xx input.text.count;
 
     search_point_offset = get_selection(cursors[main_cursor]).start;

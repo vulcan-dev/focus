@@ -73,7 +73,7 @@ finder_open :: () {
     active_global_widget = .finder;
 
     using finder;
-    input.cursor.sel = 0;
+    input.cursor.sel = xx input.text.count;
     input.cursor.pos = xx input.text.count;
 
     if need_to_refresh_results {
