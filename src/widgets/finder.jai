@@ -10,6 +10,7 @@ init_finder :: () {
 
     start(*thread_group);
 
+    finder.ignore_whitespace = config.settings.ignore_whitespace_in_search;
     finder.initted = true;
 }
 
@@ -358,7 +359,7 @@ Finder :: struct {
     results: [..] Search_Result;
 
     case_sensitive := true;
-    ignore_whitespace := ignore_whitespace_in_search;
+    ignore_whitespace := false;
 
     whole_word: bool;
 
@@ -379,7 +380,6 @@ Finder :: struct {
                                     // otherwise the search results may point to an offset which no longer exists or is invalid
 }
 
-ignore_whitespace_in_search :: true;
 
 #scope_file
 

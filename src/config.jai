@@ -83,6 +83,8 @@ refresh_config :: (path: string) {
         }
     }
 
+    finder.ignore_whitespace = config.settings.ignore_whitespace_in_search;
+
     dont_ignore_next_window_resize = true;
     platform_apply_config(*config.platform);
 }
@@ -337,6 +339,7 @@ Settings :: struct {
     copy_whole_line_without_selection   := false;
     editor_history_size                 := 128;
     scroll_to_cursor_line_offset        := 1;
+    ignore_whitespace_in_search         := false;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false
@@ -376,6 +379,7 @@ SETTINGS :: Setting.[
     .{ "smooth_scrolling",                    .boolean },
     .{ "can_cancel_go_to_line",               .boolean },
     .{ "copy_whole_line_without_selection",   .boolean },
+    .{ "ignore_whitespace_in_search",         .boolean },
 
     .{ "max_entries_in_open_file_dialog",     .integer },
     .{ "tab_size",                            .integer },

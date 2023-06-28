@@ -701,6 +701,7 @@ open_search_bar :: (using editor: *Editor, buffer: Buffer, requested_mode: Searc
     using editor.search_bar;
     active = true;
     mode = requested_mode;
+    ignore_whitespace = config.settings.ignore_whitespace_in_search;
 
     // If there was some text selected that doesn't span more than one line, use it for search
     if cursors.count == 1 {
@@ -2807,7 +2808,7 @@ Search_Bar :: struct {
     selected_result: s64 = -1;
     search_point_offset: s32;  // the point used to determine the next search result. Fixed so that we can set cursor without jumping around
     case_sensitive := true;
-    ignore_whitespace := ignore_whitespace_in_search;
+    ignore_whitespace := false;
     whole_word: bool;
 
     original_cursor_position: Cursor.State;  // remember main cursor position so we can go back to it on Esc
