@@ -82,9 +82,10 @@ jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
 
     // @TODO don't select, just get the word at the cursor
     select_word(buffer, cursor);
-    word := get_selected_string(cursor, buffer);
+    selected_text := get_selected_string(cursor, buffer);
 
-    pos, found := declaration_pos_for_word(buffer.file.full_path, cursor.pos, word);
+    /*
+    pos, found := declaration_pos_for_word(buffer.file.full_path, cursor.pos, selected_text);
     print("% % %\n", line_col(cursor.pos), line_col(pos), found);
     if found {
         cursor.pos = pos;
@@ -92,6 +93,13 @@ jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
         cursor.col_wanted = -1;
         editor.cursor_moved = .jumped;
     }
+    */
+
+    if selected_text && selected_text != to_string(finder.input.text) && offset_to_line(buffer, cursor.pos) == offset_to_line(buffer, cursor.sel) {
+        definition := tprint("%:", selected_text);
+        finder_open(definition);
+    }
+
 }
 
 jai_parse_file :: (file_info: File_Info, files: *Table(string, []*Node) = null) {

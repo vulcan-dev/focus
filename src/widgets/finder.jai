@@ -385,6 +385,13 @@ Finder :: struct {
                                     // otherwise the search results may point to an offset which no longer exists or is invalid
 }
 
+finder_open :: (needle: string) {
+    replace_text(*finder.input, needle);
+    reset_results();
+    start_new_search();
+
+    finder_open();
+}
 
 #scope_file
 
