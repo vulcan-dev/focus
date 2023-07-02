@@ -103,6 +103,8 @@ get_key_code :: (wParam: WPARAM) -> Key_Code {
         return xx #char "]";
     if wParam == VK_OEM_7
         return xx #char "'";
+    if wParam == VK_OEM_8
+        return xx #char "`";
 
     if wParam == VK_OEM_PLUS    return xx #char "+";
     if wParam == VK_OEM_MINUS   return xx #char "-";
@@ -115,6 +117,8 @@ get_key_code :: (wParam: WPARAM) -> Key_Code {
     }
     if wParam == VK_SNAPSHOT
         return PRINT_SCREEN;
+
+    print("Unknown keycode: %\n", wParam);
 
     return UNKNOWN;
 }

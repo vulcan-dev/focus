@@ -47,6 +47,10 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
 }
 
 keymap_map_key_string :: (key_string: string) -> u32 {
+    if key_string && is_digit(key_string[0]) {
+        value, success := parse_int(*key_string);
+        if success  return xx value;
+    }
     for STRING_TO_CODE_MAP {
         if equal_nocase(key_string, it.str) {
             return cast(u32) it.code;
