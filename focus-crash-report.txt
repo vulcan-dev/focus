@@ -1,2 +1,0 @@
-Array bounds check failed in file C:/Repos/focus/src/editors.jai at line number 1101: 
-Provided index: -1, maximum index: 1
