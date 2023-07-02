@@ -1,5 +1,16 @@
 # Mine
 
+- [.] build system
+    - [ ] parse errors
+    - [ ] project config
+- [.] output window
+    - [ ] clickable
+    - [x] threaded
+    - [ ] color errors
+    - [x] dont save
+
+- [ ] next/prev search result
+
 - [.] eye
     - [x] check for line length
     - [x] jump to looked-at editor, not active editor
@@ -11,10 +22,12 @@
 - [ ] add MD icons
 - [ ] search: order declaration first
 - [?] make copypaste work with multicursor (multi->multi, across buffers)
-- [ ] stupid goto definition
-
 - [x] setting to ignore whitespace in search
     - [x] improve by making a space be treated as .* while in this mode
+    - [ ] instance per search, and allow calls to override (like stupid goto definition)
+    - [ ] Fix? could not find "buffer string" when shuch lines exist
+
+- [x] stupid goto definition
 - [x] add hook system for settings
 - [x] Show navigate dialog on splash
 - [x] Set good default window location

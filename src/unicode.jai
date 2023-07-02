@@ -42,13 +42,6 @@ Utf8_Char :: struct {
     count: s32;
 }
 
-char_as_string :: (char_pointer: *u8) -> string {
-    result : string = ---;
-    result.data = char_pointer;
-    result.count = 1;
-    return result;
-}
-
 opening_brackets :: u8.[#char "{", #char "(", #char "[", #char "<"];
 closing_brackets :: u8.[#char "}", #char ")", #char "]", #char ">"];
 
@@ -69,7 +62,7 @@ is_closing_bracket :: (c: u8) -> bool {
         append(*builder, "return ");
         for * closing_brackets {
             if it_index  append(*builder, " ||");
-            print_to_builder(*builder, " c == #char \"%\"", char_as_string(it));
+            print_to_builder(*builder, " c == #char \"%\"", strings.char_as_string(it));
         }
         append(*builder, ";");
         return builder_to_string(*builder);

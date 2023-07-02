@@ -3,7 +3,7 @@ init_finder :: () {
     num_threads := max(num_cpus - 1, 1);
 
     thread_group = Thread_Group.{};
-    init(*thread_group, num_threads, group_proc = search_threadproc);
+    init(*thread_group, num_threads, group_proc = all_threadproc);
     thread_group.name = "Finder";
     thread_group.logging = false;
     for * thread_group.worker_info { it.thread.starting_context.logger_data = context.logger_data; }
@@ -118,6 +118,7 @@ finder_update :: () {
     tasks := get_completed_work(*thread_group);
     for tasks {
         task := cast(*Search_Task) it;
+        if task.task_type != .SEARCH  continue;
 
         if request.id != task.request_id {
             // Old task, ignore
@@ -248,6 +249,7 @@ start_new_search :: (force := false) {
 
     while buffer_start_index < open_buffers.count {
         task := New(Search_Task);
+        task.task_type = .SEARCH;
         task.request_id = request.id;
         task.needle = copy_string(request.needle);  // we have to copy because otherwise we'd have to sync with other threads
         task.skip_table = array_copy(request.skip_table);
@@ -264,8 +266,13 @@ start_new_search :: (force := false) {
     }
 }
 
+#scope_export
+
 search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
-    using task := cast(*Search_Task) work;
+    task := cast(*Task) work;
+    assert(task.task_type == .SEARCH);
+
+    using search_task := cast(*Search_Task) task;
 
     for buffer_id : buffer_start_index .. buffer_end_index {
         // Search in buffer
@@ -308,10 +315,10 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
             offset += needle.count;
         }
     }
-
     return .CONTINUE;  // we want to reuse this thread for future searches
 }
 
+#scope_file
 
 reset_search_request :: (using request: *Search_Request, new_needle: string) { //@nocheckin: add whole_word / case sensitive parameters
     id += 1;
@@ -339,6 +346,10 @@ free_task :: (task: *Search_Task) {
     array_free(task.skip_table);
     free(task);
 }
+
+free_task :: (task: *Run_Command_Task) {
+}
+
 
 toggle_expand :: () {
     using finder;
@@ -419,6 +430,7 @@ Search_Request :: struct {
 
 // A task received by a worker thread
 Search_Task :: struct {
+    using base: Task;
     request_id:  s64;
     needle: string;
     skip_table: [] s32;
@@ -434,7 +446,5 @@ Search_Task :: struct {
     num_results: s64;
     results: [MAX_RESULTS_PER_WORKER] Search_Result;
 }
-
-thread_group: Thread_Group;
 
 MAX_RESULTS_PER_WORKER :: 1000;

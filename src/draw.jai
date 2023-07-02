@@ -18,10 +18,22 @@ draw_frame :: () {
         case .None;
             editors_snap_splitter(0.5);
             draw_welcome_screen(screen);
+            if editors.floating >= 0 {
+                draw_editor(editors.floating, get_floating_area(welcome_right_area), 0, .editor_floating, screen);
+                active_pane_rect = floating_area;
+            }
         case .Single;
             editors_snap_splitter(0.5);
             draw_editor(editors.active, screen, footer_height, .editor_single);
-            active_pane_rect = screen;
+            if editors.floating >= 0 {
+                split_x := screen.w * 0.5;
+                left_rect, right_rect := cut_left(screen, split_x, margin = 2);
+                draw_editor(editors.floating, get_floating_area(right_rect), 0, .editor_floating, screen);
+                active_pane_rect = floating_area;
+            }
+            else {
+                active_pane_rect = screen;
+            }
         case .Double;
             // Drag splitter
             if ui.active == .editor_splitter {
@@ -58,7 +70,14 @@ draw_frame :: () {
             draw_editor(editors.left,  left_rect,  footer_height, .editor_left,  screen);
             draw_editor(editors.right, right_rect, footer_height, .editor_right, screen);
 
-            active_pane_rect = ifx editors.active == editors.left then left_rect else right_rect;
+            if editors.floating >= 0 {
+                rect := ifx editors.active == editors.left then right_rect else left_rect;
+                draw_editor(editors.floating, get_floating_area(rect), 0, .editor_floating, screen);
+                active_pane_rect = floating_area;
+            }
+            else {
+                active_pane_rect = ifx editors.active == editors.left then left_rect else right_rect;
+            }
 
             splitter_rect := make_rect(left_rect.x + left_rect.w, left_rect.y + footer_height, 2, left_rect.h - footer_height);
             draw_splitter(splitter_rect, split_x, .editor_splitter);
@@ -96,13 +115,15 @@ draw_frame :: () {
     Simp.swap_buffers(window);
 }
 
-left_area : Rect;
+welcome_left_area : Rect;
+welcome_right_area : Rect;
+floating_area : Rect;
 
 draw_welcome_screen :: (main_area: Rect) {
     ui_id := get_ui_id_from_loc();
 
-    right_area, left_area= := cut_right(main_area, main_area.w / GOLDEN_RATIO);
-    logo_area, info_area := cut_top(left_area, left_area.h / GOLDEN_RATIO);
+    welcome_right_area, welcome_left_area = cut_right(main_area, main_area.w / GOLDEN_RATIO);
+    logo_area, info_area := cut_top(welcome_left_area, welcome_left_area.h / GOLDEN_RATIO);
 
     logo_rect := logo_area;
     logo_rect.w = min(logo_area.w, logo_area.h) / GOLDEN_RATIO;
@@ -114,7 +135,7 @@ draw_welcome_screen :: (main_area: Rect) {
 
     // Draw the left part
     {
-        draw_rect(left_area, Colors.BACKGROUND_LIGHT);
+        draw_rect(welcome_left_area, Colors.BACKGROUND_LIGHT);
 
         // TODO: fix the circle shader
         // center := center_of(logo_rect);
@@ -155,7 +176,8 @@ draw_welcome_screen :: (main_area: Rect) {
 
     // Draw the right part
     {
-        draw_rect(right_area, Colors.BACKGROUND);
+        draw_rect(welcome_right_area, Colors.BACKGROUND);
+        right_area := welcome_right_area;
 
         Shortcut :: struct { action: Action_Common; description: string; }
 
@@ -313,7 +335,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     rect = align_to_grid(rect);
     if !is_valid(rect) return;
 
-    draw_rect(rect, Colors.BACKGROUND);
+    if ui_id == .editor_floating
+        draw_rounded_rect_with_shadow(rect, Colors.BACKGROUND_DARK);
+    else
+        draw_rect(rect, Colors.BACKGROUND);
 
     became_active := maybe_set_hot_or_active(ui_id, rect, .TEXT_SELECT);
     if became_active then activate_editors();
@@ -1290,7 +1315,7 @@ draw_open_file_dialog :: () {
     // Figure out the dialog box size
     box_rect: Rect = ---;
     if editors.layout == .None { // on welcome screen
-        box_rect = left_area;
+        box_rect = welcome_left_area;
         draw_rounded_rect(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
     }
     else {
@@ -2787,6 +2812,7 @@ Ui_Id :: enum s64 {
     unsaved_buffers     :: -10;
     commands_dialog     :: -11;
     open_project_dialog :: -12;
+    editor_floating     :: -13;
 
     // The rest will be derived from loc
 }

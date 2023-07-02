@@ -32,10 +32,10 @@ main :: () {
         window_y = 0;
         window_width = 1549;
         window_height = 1048;
-        #if DEBUG {
-            window_width = window_width * 2 / 3;
-            window_height = window_height * 2 / 3;
-        }
+        //#if DEBUG {
+        //    window_width = window_width * 2 / 3;
+        //    window_height = window_height * 2 / 3;
+        //}
     }
     else {
         window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
@@ -324,6 +324,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .increase_font_size;                               increase_font_size();                               return true;
         case .decrease_font_size;                               decrease_font_size();                               return true;
         case .reset_font_size_to_default;                       reset_font_size_to_default();                       return true;
+
+        case .build_debug;                                      build(.DEBUG);                                      return true;
 
         case .open_project; /* deprecated */                    show_open_project_dialog();                         return true;
         case .switch_to_project;                                show_open_project_dialog();                         return true;
@@ -714,6 +716,8 @@ dont_ignore_next_window_resize := false;
 #load "meow_hash.jai";
 #load "user_messages.jai";
 #load "eye_tracking.jai";
+#load "run_command.jai";
+#load "threads.jai";
 
 #load "widgets/text_input.jai";
 #load "widgets/open_file_dialog.jai";
@@ -758,6 +762,9 @@ dont_ignore_next_window_resize := false;
 #import "Thread";
 #import "Compiler";
 #import "Machine_X64";
+strings :: #import "Strings";
+temp_strings :: #import "Strings_Alloc"(temp);
+new_strings :: #import "Strings_Alloc";
 
 // #if DEBUG {
 //     #import "Tracy";

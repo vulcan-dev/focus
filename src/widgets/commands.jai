@@ -139,6 +139,8 @@ commands := #run Command.[
     .{ .show_open_file_dialog_in_navigate_mode,             "Navigate To File",                   0, .None },
     .{ .show_open_file_dialog_in_navigate_mode_from_root,   "Navigate To File From Root",         0, .None },
 
+    .{ .build_debug,                                        "Build: Debug",                       0, .None },
+
     .{ .switch_to_project,                                  "Switch To Project",                  0, .None },
     .{ .open_projects_directory,                            "Open Projects Directory",            0, .None },
     .{ .open_project_config,                                "Open Config For Project",            0, .None },
@@ -146,7 +148,6 @@ commands := #run Command.[
 
     .{ .create_new_file,                                    "Create New File",                    0, .None },
     .{ .create_new_file_on_the_side,                        "Create New File On The Side",        0, .Single },
-
     .{ .search_in_project,                                  "Search In Workspace",                0, .None },
 
     .{ .select_all,                                         "Select All",                         0, .Single },

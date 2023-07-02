@@ -204,6 +204,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .jump_to_file_start;               move_to_file_start                  (editor, buffer);
         case .jump_to_file_end;                 move_to_file_end                    (editor, buffer);
         case .jump_to_matching_bracket;         jump_to_matching_bracket            (editor, buffer, shift_pressed);
+        case .open_floating;                    open_floating                       (editor, buffer);
 
         case .indent_or_go_to_next_tabstop;     indent_or_tab                       (editor, buffer); keep_selection = true;
         case .indent;                           indent_lines                        (editor, buffer); keep_selection = true;
@@ -421,20 +422,31 @@ editors_open_buffer :: (buffer_id: s64, placement: Editor_Placement = .in_place)
     if #complete editors.layout == {
         case .None;
             new_editor_id = find_or_create_editor(buffer_id);
-            editors.layout = .Single;
+            if placement == .floating {
+                editors.floating = new_editor_id;
+            }
+            else {
+                editors.layout = .Single;
+            }
 
         case .Single;
             if placement == .in_place {
                 // Open in place
                 new_editor_id  = find_or_create_editor(buffer_id);
-            } else if placement == .on_the_side || placement == .right {
+            }
+            else if placement == .floating {
+                new_editor_id = find_or_create_editor(buffer_id);
+                editors.floating = new_editor_id;
+            }
+            else if placement == .on_the_side || placement == .right {
                 // Open on the right
                 editors.right  = find_or_create_editor(buffer_id, editors.active);
                 editors.left   = editors.active;
                 new_editor_id  = editors.right;
                 editors.layout = .Double;
                 editors_start_moving_splitter(0.5, start = 1.0);
-            } else {
+            }
+            else {
                 // Open on the left
                 editors.left   = find_or_create_editor(buffer_id, editors.active);
                 editors.right  = editors.active;
@@ -451,19 +463,32 @@ editors_open_buffer :: (buffer_id: s64, placement: Editor_Placement = .in_place)
             );
 
             if on_the_right {
-                // Open on the right (obviously)
-                editors.right  = find_or_create_editor(buffer_id, editors.left);
-                new_editor_id  = editors.right;
+                if placement == .floating {
+                    new_editor_id  = find_or_create_editor(buffer_id);
+                    editors.floating = new_editor_id;
+                }
+                else {
+                    // Open on the right (obviously)
+                    editors.right  = find_or_create_editor(buffer_id, editors.left);
+                    new_editor_id  = editors.right;
+                }
             } else {
-                // Open on the left
-                editors.left   = find_or_create_editor(buffer_id, editors.right);
-                new_editor_id  = editors.left;
+                if placement == .floating {
+                    new_editor_id  = find_or_create_editor(buffer_id);
+                    editors.floating = new_editor_id;
+                }
+                else {
+                    // Open on the left
+                    editors.left   = find_or_create_editor(buffer_id, editors.right);
+                    new_editor_id  = editors.left;
+                }
             }
     }
     buffer := *open_buffers[buffer_id];
     if buffer.num_times_opened < 255 then buffer.num_times_opened += 1;
 
-    make_editor_active(new_editor_id);
+    if new_editor_id != editors.floating
+        make_editor_active(new_editor_id);
 
     maybe_mark_buffer_as_deleted(buffer_id);  // check in case we missed that it's deleted
     session_notify_modified_buffer(buffer_id);
@@ -2849,6 +2874,7 @@ Editor_State :: struct {
     active: s64 = -1;
     left:   s64 = -1;
     right:  s64 = -1;
+    floating: s64 = -1;
 
     expanded := false;  // whether the active editor should be larger
 
@@ -2865,7 +2891,14 @@ Editor_Placement :: enum {
     on_the_side;
     left;
     right;
+    floating;
 }
+
+floating_rect_welcome_screen :: Rect.{300, 300, 800, 800};
+floating_rect_single  :: floating_rect_welcome_screen;
+floating_rect_left :: floating_rect_welcome_screen;
+floating_rect_right :: floating_rect_welcome_screen;
+
 
 open_buffers: Simple_Bucket_Array(Buffer, items_per_bucket = 1024, max_buckets = 1024);  // 8 Kb for pointer array, ~1 million buffers is the maximum
 open_editors: [..] Editor;
@@ -3156,6 +3189,27 @@ finalize_buffer_switch :: () {
 line_col :: (pos: s32) -> string #expand {
     coords := offset_to_coords(`buffer, pos);
     return tprint("[%, %]", coords.line, coords.col);
+}
+
+open_floating :: (editor: *Editor, buffer: *Buffer) {
+    editors_open_buffer(editor.buffer_id, .floating);
+}
+
+get_floating_area :: (rect: Rect) -> Rect {
+    if #complete editors.layout == {
+        case .None;
+        floating_area = shrink(rect, 20);
+        height :: 300;
+        floating_area.h = height;
+
+        case .Single; #through;
+        case .Double;
+        floating_area = shrink(rect, 20);
+        height :: 300;
+        floating_area.y += floating_area.h - height;
+        floating_area.h = height;
+    }
+    return floating_area;
 }
 
 #scope_file

@@ -274,6 +274,8 @@ ACTIONS_COMMON :: string.[
     "open_project_config",
     "open_error_log",
 
+    "build_debug",
+
     "show_commands",
     "search_in_buffer",
     "search_in_buffer_dropdown_mode",
@@ -346,6 +348,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "toggle_comment",
     "jump_to_matching_bracket",
     "toggle_block_comment",
+    "open_floating",
     "select_line",
     "scroll_viewport_up",
     "scroll_viewport_up_fast",

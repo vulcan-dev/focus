@@ -731,7 +731,7 @@ unsaved_buffers_exist :: () -> bool {
     // Perhaps I should write an unsaved buffers http service,
     // which would tell me if they exist in a O(1) time?
     for open_buffers {
-        if it.modified return true;
+        if it.modified && !it.readonly  return true;
     }
     return false;
 }
@@ -740,6 +740,12 @@ remove_all_buffers :: () {
     deinit(*buffers_table);
     for * open_buffers free_buffer(it);
     bucket_array_reset(*open_buffers);
+}
+
+clear_buffer :: (using buffer: *Buffer) {
+    if bytes  delete_range_raw(buffer, 0, bytes.count);
+    clear_undos(buffer);
+    clear_redos(buffer);
 }
 
 #scope_file
@@ -792,6 +798,12 @@ new_delete_edit :: (buffer: *Buffer, start: s32, end: s32, old_str: string) {
     old_bytes = copy_string(old_str);
 
     clear_redos(buffer);
+}
+
+
+clear_undos :: (using buffer: *Buffer) {
+    for * undos  deinit(it);
+    array_reset_keeping_memory(*undos);
 }
 
 clear_redos :: (using buffer: *Buffer) {
