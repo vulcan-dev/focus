@@ -34,6 +34,10 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
     return success, changed, there_were_warnings;
 }
 
+get_project_config_path :: (project_name: string) -> string {
+    return sprint("%/%.focus-config", projects_dir, project_name);
+}
+
 refresh_config :: (path: string) {
     old_workspace_dirs := array_copy_tmp(config.workspace.workspace_dirs);
 

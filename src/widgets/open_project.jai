@@ -63,6 +63,7 @@ open_selected_project :: () {
             show_open_file_dialog(.navigate);
     } else {
         add_user_error(tprint("Couldn't load project config for %", entry.name), dismiss_in_seconds = 10);
+        editors_open_file(get_project_config_path(entry.name));
     }
 }
 

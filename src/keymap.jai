@@ -275,6 +275,9 @@ ACTIONS_COMMON :: string.[
     "open_error_log",
 
     "build_debug",
+    "build_debug_and_run",
+    "build_release",
+    "build_release_and_run",
 
     "show_commands",
     "search_in_buffer",
@@ -308,6 +311,7 @@ ACTIONS_COMMON :: string.[
     "jump_to_line_end",
     "jump_to_file_start",
     "jump_to_file_end",
+    "jump_to_error",
     "delete_left_char",
     "delete_right_char",
     "delete_word_left",

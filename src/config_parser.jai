@@ -8,6 +8,7 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
 
     warnings: [..] string;
     warnings.allocator = temp;
+    reset_configs();
 
     while true {
         line, found := consume_next_line(*handler);
@@ -36,6 +37,12 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
 
         if !success return Parsed_Config.{}, false, error_msg, warnings;
         if success && error_msg then array_add(*warnings, error_msg);
+    }
+
+    build_config_error := validate_build_configs();
+    if build_config_error {
+        error_msg := log_parser_error(handler, build_config_error);
+        return Parsed_Config.{}, false, error_msg, .[];
     }
 
     // Mix the common key mappings into every keymap to support common actions
@@ -251,7 +258,22 @@ switch_top_section :: (using parser: *Config_Parser, line: string) -> error: boo
 parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success: bool, error_msg: string /* temp */ {
     if begins_with(line, "[") {
         for WORKSPACE_SUBSECTIONS {
-            if line == it { workspace_subsection = xx it_index; return true, ""; }
+            if line == it {
+                workspace_subsection = xx it_index;
+                is_build_section := true;
+                if workspace_subsection == {
+                    case .build_debug;            build_mode = .DEBUG;
+                    case .build_debug_and_run;    build_mode = .DEBUG_AND_RUN;
+                    case .build_release;          build_mode = .RELEASE;
+                    case .build_release_and_run;  build_mode = .RELEASE_AND_RUN;
+                    case; is_build_section = false;
+                }
+                if is_build_section {
+                    config := *build_configs[build_mode];
+                    config.enabled = true;
+                }
+                return true, "";
+            }
         }
         error_msg := log_parser_error(handler, "Unknown workspace subsection '%'.\nAvailable options are: %.", line, join(..WORKSPACE_SUBSECTIONS, ", ", allocator = temp));
         return false, error_msg;
@@ -294,6 +316,34 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
                     array_add(*parsed_config.ignore_file_extensions, trim_left(it, "\t "));
                 }
             }
+        case .build_debug; #through;
+        case .build_debug_and_run; #through;
+        case .build_release; #through;
+        case .build_release_and_run;
+            if !strings.contains(line, #char ":") {
+                error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
+                return false, error_msg;
+            }
+            key, value := strings.split_into_two(line, #char ":");
+            key = strings.trim(key);
+            value = strings.trim(value);
+            config := *build_configs[build_mode];
+            if key == {
+                case "name";
+                config.name = copy_string(value);
+
+                case "dir";
+                // working_directory in task runner requires backslashes
+                config.working_directory = new_strings.replace(value, "/", "\\");
+
+                case "command";
+                array_add(*config.commands, copy_string(value));
+
+                case;
+                error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
+                return false, error_msg;
+            }
+
     }
     return true, "";
 }
@@ -620,6 +670,10 @@ Parsed_Color :: struct {
     color: Color;
 }
 
+workspace_subsection_from_build_mode :: (mode: Build_Mode) -> string {
+    return Config_Parser.WORKSPACE_SUBSECTIONS[mode + 4]; // @Hack
+}
+
 #scope_file
 
 Config_Parser :: struct {
@@ -649,6 +703,10 @@ Config_Parser :: struct {
         ignore_dirs;
         allow_file_extensions;
         ignore_file_extensions;
+        build_debug;
+        build_release;
+        build_debug_and_run;
+        build_release_and_run;
     };
     WORKSPACE_SUBSECTIONS :: string.[
         // Must match the order of the enum above
@@ -656,7 +714,12 @@ Config_Parser :: struct {
         "[ignore dirs]",
         "[allow file extensions]",
         "[ignore file extensions]",
+        "[build debug]",
+        "[build release]",
+        "[build debug and run]",
+        "[build release and run]",
     ];
+    build_mode : Build_Mode;
 
     style_subsection: enum {
         user_interface;

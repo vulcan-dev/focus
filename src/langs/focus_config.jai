@@ -74,6 +74,10 @@ try_parsing_header :: (using tokenizer: *Tokenizer, token: *Token) {
         case "[editors]";                   token.type = .header;
         case "[open file dialog]";          token.type = .header;
         case "[search dialog]";             token.type = .header;
+        case "[build debug]";               token.type = .header;
+        case "[build debug and run]";       token.type = .header;
+        case "[build release]";             token.type = .header;
+        case "[build release and run]";     token.type = .header;
 
         case "[user interface]";            token.type = .header; section = .ui;
         case "[colors]";                    token.type = .header; section = .colors;

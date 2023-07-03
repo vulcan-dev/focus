@@ -330,6 +330,7 @@ refresh_entries :: (clear_input := true) {
             top_priority_bit: u64 = 1 << 62;  // NOT the topmost bit because we'll be converting to s64 later
 
             for buffer, buffer_id : open_buffers {
+                if buffer.ignore  continue;
                 if buffer.deleted && !buffer.modified continue;  // NOTE: we might still want to see externally deleted buffers.
                                                                  // Maybe use 'deleted' and 'modified_on_disk' to distingiush the buffers
                                                                  // we haven't deleted ourselves?

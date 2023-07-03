@@ -26,6 +26,7 @@ main :: () {
     load_global_config(fallback_to_default_on_failure = true);
     init_workspace();
     init_buffers();
+    init_run_command();
 
     if config.settings.open_on_monitor_one {
         window_x = 1913;
@@ -326,6 +327,9 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .reset_font_size_to_default;                       reset_font_size_to_default();                       return true;
 
         case .build_debug;                                      build(.DEBUG);                                      return true;
+        case .build_debug_and_run;                              build(.DEBUG_AND_RUN);                              return true;
+        case .build_release;                                    build(.RELEASE);                                    return true;
+        case .build_release_and_run;                            build(.RELEASE_AND_RUN);                            return true;
 
         case .open_project; /* deprecated */                    show_open_project_dialog();                         return true;
         case .switch_to_project;                                show_open_project_dialog();                         return true;
@@ -347,6 +351,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         case .move_to_previous_editor_history;                  move_to_previous_editor_history();                  return true;
         case .move_to_next_editor_history;                      move_to_next_editor_history();                      return true;
+
+        case .jump_to_error;                                    jump_to_error();
 
         // TODO: search_in_buffer
         case .search_in_project;

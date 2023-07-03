@@ -1915,7 +1915,7 @@ draw_unsaved_buffers_dialog :: () {
         pen_x := cast(s32) (header_rect.x + 2 * margin);
         pen_y := cast(s32) (header_rect.y + (header_rect.h - font_ui_medium.character_height) / 2 + 2);
         header_text := "There are unsaved files. Continue?";
-        if unsaved_buffers.count == 1 then header_text = "There is an unsaved file. Continue?";
+        if unsaved_buffers.count == 1 then header_text = "#aved file. Continue?";
         Simp.draw_text(font_ui_medium, pen_x, pen_y, header_text, Colors.UI_DEFAULT);
 
         hr := cut_bottom(header_rect, 1);

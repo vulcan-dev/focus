@@ -399,6 +399,22 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) {
     editors_open_buffer(buffer_id, placement);
 }
 
+jump_to_error :: () {
+    if !error_exists  return;
+
+    editors_open_file(last_error.file.full_path);
+    editor := *open_editors[editors.active];
+    buffer := *open_buffers[editor.buffer_id];
+
+    cursor := leave_only_original_cursor(editor);
+    position := coords_to_offset(buffer, last_error.coords);
+    cursor.pos = position;
+    cursor.sel = position;
+    add_paste_animation(editor, get_selection(cursor));
+    editor.cursor_moved = .jumped;
+    editor.scroll_to_cursor = .yes;
+}
+
 editors_open_global_config :: (placement: Editor_Placement) {
     editors_open_file(global_config_path, placement);
 }
@@ -1154,6 +1170,13 @@ update_window_title :: (buffer_id: s64 = -1) {
     platform_set_window_title(title);
 }
 
+save_all_raw :: () {
+    for * buffer, buffer_id : open_buffers {
+        if !buffer.modified continue;
+        save_buffer_to_disk(buffer, buffer_id);
+    }
+}
+
 #scope_file
 
 create_cursor :: (using editor: *Editor, buffer: Buffer, where: enum { above; below; }) {
@@ -1310,11 +1333,7 @@ save_buffer :: (editor: *Editor, buffer: *Buffer) {
 
 save_all :: (editor: *Editor, buffer: *Buffer) {
     new_edit_group(buffer, editor);
-
-    for * buffer, buffer_id : open_buffers {
-        if !buffer.modified continue;
-        save_buffer_to_disk(buffer, buffer_id);
-    }
+    save_all_raw();
 }
 
 switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := false) {

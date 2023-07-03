@@ -1,15 +1,18 @@
 # Mine
 
 - [.] build system
-    - [ ] parse errors
+    - [x] parse errors
     - [ ] project config
+    - [ ] save all on build
 - [.] output window
     - [ ] clickable
-    - [x] threaded
+    - [.] threaded !!!FIX threading!!!
     - [ ] color errors
-    - [x] dont save
+    - [x] don't save
+    - [ ] don't show in open dialogs
 
 - [ ] next/prev search result
+- [ ] case conversion
 
 - [.] eye
     - [x] check for line length

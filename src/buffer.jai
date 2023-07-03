@@ -731,7 +731,7 @@ unsaved_buffers_exist :: () -> bool {
     // Perhaps I should write an unsaved buffers http service,
     // which would tell me if they exist in a O(1) time?
     for open_buffers {
-        if it.modified && !it.readonly  return true;
+        if it.modified && !it.readonly && !it.ignore  return true;
     }
     return false;
 }
@@ -856,6 +856,7 @@ Buffer :: struct {
     deleted                := false;
     needs_coloring         := false;
     readonly               := false;
+    ignore                 := false;
     binary                 := false;
     error_when_saving      := false;
     crlf                   := false;
@@ -932,6 +933,20 @@ Cursor_Coords :: struct {
 
 Coords :: struct {
     line, col: s32;
+}
+
+coords_from_string :: (s: string) -> Coords, ok: bool {
+    result : Coords = ---;
+    line_s, col_s := strings.split_into_two(s, #char ",");
+    line, ok := parse_int(*line_s);
+    if !ok  return result, false;
+    result.line = xx (line - 1);
+
+    col, ok= := parse_int(*col_s);
+    if !ok  return result, false;
+    result.col = xx (col - 1);
+
+    return result, ok;
 }
 
 Offset_Range :: struct {
