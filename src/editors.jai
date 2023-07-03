@@ -241,6 +241,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .delete_to_start_of_line;          delete_to_start_of_line             (editor, buffer);
         case .delete_to_end_of_line;            delete_to_end_of_line               (editor, buffer);
 
+        case .toggle_line_wrap;                 toggle_line_wrap                    (editor, buffer);
+
         case;                                   return false;
     }
 
@@ -2774,11 +2776,16 @@ toggle_block_comment :: (editor: *Editor, buffer: *Buffer) {
     editor.cursor_moved = .unimportant;
 }
 
+toggle_line_wrap :: (editor: *Editor, buffer: Buffer) {
+
+}
+
 free_editor :: (using editor: *Editor) {
     array_reset(*cursors);
     array_reset(*paste_animations);
     array_reset(*highlights);
     array_reset(*search_bar.results);
+    array_reset(*line_wrapped_line_starts);
 }
 
 #scope_export
@@ -2805,6 +2812,9 @@ Editor :: struct {
     search_bar: Search_Bar;
 
     viewport: Viewport;
+
+    line_starts: [] s32;  // either points to the real buffer line starts, or to the editor ones when line wrap is on
+    line_wrapped_line_starts: [..] s32;  // empty when line wrap is off
 
     paste_animations: [..] Paste_Animation;
 }
@@ -3086,24 +3096,34 @@ frames_are_mergable :: (a: Editor_History_Frame, b: Editor_History_Frame) -> boo
         && a.editor_state == b.editor_state;
 }
 
-move_to_previous_editor_history :: () {
+move_to_previous_editor_history :: (by_buffer := false) {
     using editor_history;
     // print("BACK: current: %, start: %, end: %\n", current, start, end);
     if current == start return;
 
     old_frame := frames[current];
     current = previous_history_index(current);
+    if by_buffer {
+        while current != start && old_frame.editor_state == frames[current].editor_state {
+            current = previous_history_index(current);
+        }
+    }
     move_to_editor_history_frame(frames[current], old_frame);
     // print("   -> current: %, start: %, end: %. RESTORE: %\n", current, start, end, frames[current]);
 }
 
-move_to_next_editor_history :: () {
+move_to_next_editor_history :: (by_buffer := false) {
     using editor_history;
     // print("FORW: current: %, start: %, end: %\n", current, start, end);
     if current == end return;
 
     old_frame := frames[current];
     current = next_history_index(current);
+    if by_buffer {
+        while current != end && old_frame.editor_state == frames[current].editor_state {
+            current = next_history_index(current);
+        }
+    }
     move_to_editor_history_frame(frames[current], old_frame);
     // print("   -> current: %, start: %, end: %. RESTORE: %\n", current, start, end, frames[current]);
 }

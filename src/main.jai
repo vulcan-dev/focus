@@ -133,6 +133,7 @@ main :: () {
                 window_width = it.width;
                 window_height = it.height;
                 if should_reinit {
+                    // Cleanup: revisit this code, it's been touched by multiple people and needs simplification
                     screen    = make_rect(0, 0, window_width, window_height);
                     dpi_scale = platform_get_dpi_scale(window);
                     init_fonts_and_dependent_things();
@@ -352,6 +353,9 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .move_to_previous_editor_history;                  move_to_previous_editor_history();                  return true;
         case .move_to_next_editor_history;                      move_to_next_editor_history();                      return true;
 
+        case .move_to_previous_buffer;                          move_to_previous_editor_history(by_buffer = true);  return true;
+        case .move_to_next_buffer;                              move_to_next_editor_history    (by_buffer = true);  return true;
+
         case .jump_to_error;                                    jump_to_error();
 
         // TODO: search_in_buffer
@@ -552,6 +556,11 @@ update_window_size :: (w: s64, h: s64) {
     window_height = h;
     Simp.update_window(window);
     screen = make_rect(0, 0, window_width, window_height);
+    new_dpi_scale := platform_get_dpi_scale(window);
+    if new_dpi_scale != dpi_scale {
+        dpi_scale = new_dpi_scale;
+        init_fonts_and_dependent_things();
+    }
 }
 
 // Important directories
@@ -796,11 +805,11 @@ MODS_CTRL_SHIFT     :: #run Mods.{ ctrl_pressed = true, shift_pressed = true }.p
 MODS_CTRL_ALT       :: #run Mods.{ ctrl_pressed = true, alt_pressed   = true }.packed;
 MODS_CTRL_ALT_SHIFT :: #run Mods.{ ctrl_pressed = true, alt_pressed   = true, shift_pressed = true }.packed;
 
-MIN_WINDOW_WIDTH  :: 50;
-MIN_WINDOW_HEIGHT :: 50;
-
 
 #scope_export
+
+MIN_WINDOW_WIDTH  :: 100;
+MIN_WINDOW_HEIGHT :: 100;
 
 DOUBLE_CLICK_SPEED     :: 0.3;  // how many seconds between clicks to consider it a double click
 DOUBLE_CLICK_TOLERANCE :: 2;    // how many pixels between the click locations are allowed
