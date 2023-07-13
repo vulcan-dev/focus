@@ -1,37 +1,69 @@
 highlight_jai_syntax :: (using buffer: *Buffer) {
     tokenizer: Tokenizer = ---;
+    tokenizer.the_buffer = buffer;
     tokenizer.buf   = to_string(bytes);
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
     color: Code_Color;
 
+    // @Autoindent
+    //array_reset_keeping_memory(*line_starts);
+    //array_add(*line_starts, 0);  // first line
+    //line_start_index := 0;
+    current_indent_level : s8 = 0;
+    is_new_line := false;
+
     while true {
         token := get_next_token(*tokenizer);
         if token.type == .eof break;
 
-        // if token.type == .invalid && buffer.has_file {
-        //     log_error("Invalid token in file: %", file.full_path);
-        // }
+        // @Autoindent
+        //while line_starts.count > line_start_index + 1 {
+        //    line_start_index += 1;
+        //    indent_level[line_starts[line_start_index] - 1] = current_indent_level;
+        //    is_new_line = true;
+        //}
 
         using tokenizer;
 
         // Maybe retroactively highlight a function
-        if token.type == .punctuation && token.punctuation == .l_paren {
-            // Handle "func :: ("
-            if prev.type == .identifier {
-                memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
+        is_dedent := false;
+        if token.type == .punctuation {
+            if token.punctuation == .l_paren {
+                current_indent_level += 1;
+                // Handle "func :: ("
+                if prev.type == .identifier {
+                    memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
+                }
+                else if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
+                    memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+                }
             }
-            else if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
-                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+            else if token.punctuation == .l_brace || token.punctuation == .l_bracket {
+                current_indent_level += 1;
+            }
+            else if token.punctuation == .r_brace || token.punctuation == .r_bracket || token.punctuation == .r_paren {
+                is_dedent = true;
             }
         }
-        else if token.type == .keyword && token.keyword == .kw_inline {
-            // Handle "func :: inline"
-            if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
-                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
-                // @TODO next token should be l_paren, and should start scope
+        else if token.type == .keyword {
+            if token.keyword == .kw_inline {
+                // Handle "func :: inline"
+                if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
+                    memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+                    // @TODO next token should be l_paren, and should start scope
+                }
             }
+        }
+
+        if is_dedent {
+            current_indent_level -= 1;
+            if current_indent_level < 0  current_indent_level = 0;
+            //if is_new_line  indent_level[line_starts[line_start_index] - 1] = current_indent_level; @Autoindent
+        }
+        else {
+            is_new_line = false;
         }
 
         // Remember last 2 tokens
@@ -41,6 +73,9 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
     }
+
+    // @Autoindent
+    //array_add(*line_starts, cast(s32) bytes.count);  // last line
 }
 
 jai_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64) -> bool {
@@ -141,7 +176,7 @@ jai_parse_file :: (file_info: File_Info, files: *Table(string, []*Node) = null) 
 
 
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {
-    t = eat_white_space(t, max_t);
+    t = eat_white_space(t, max_t, tokenizer.the_buffer);
 
     token: Token;
     token.start = cast(s32) (t - buf.data);
@@ -258,7 +293,7 @@ parse_compiler_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .identifier;
 
     t += 1;
-    t = eat_white_space(t, max_t);  // there may be spaces between the # and the name
+    t = eat_white_space(t, max_t, tokenizer.the_buffer);  // there may be spaces between the # and the name
     if !is_alpha(<<t) return;
 
     mark := get_temporary_storage_mark();
@@ -554,6 +589,7 @@ read_identifier_string_tmp :: (using tokenizer: *Tokenizer) -> string /* temp */
 }
 
 Tokenizer :: struct {
+    the_buffer : *Buffer;
     buf: string;
     max_t:   *u8;
     start_t: *u8;  // cursor when starting parsing new token
@@ -766,9 +802,10 @@ MAX_DIRECTIVE_LENGTH :: #run -> s32 {
 }
 
 
-eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
+eat_white_space :: inline (start: *u8, max_t: *u8, using buffer: *Buffer) -> *u8 {
     t := start;
-    while t < max_t && is_white_space(<<t) {
+    while t < max_t && is_white_space(t.*) {
+        //if t.* == #char "\n"  array_add(*line_starts, cast(s32)(t - buffer.bytes.data) + 1); @Autoindent
         t += 1;
     }
     return t;

@@ -8,7 +8,7 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
 
     warnings: [..] string;
     warnings.allocator = temp;
-    reset_configs();
+    reset_build_configs();
 
     while true {
         line, found := consume_next_line(*handler);
@@ -266,6 +266,8 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
                     case .build_debug_and_run;    build_mode = .DEBUG_AND_RUN;
                     case .build_release;          build_mode = .RELEASE;
                     case .build_release_and_run;  build_mode = .RELEASE_AND_RUN;
+                    case .build_run_debug;        build_mode = .RUN_DEBUG;
+                    case .build_run_release;      build_mode = .RUN_RELEASE;
                     case; is_build_section = false;
                 }
                 if is_build_section {
@@ -319,7 +321,9 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
         case .build_debug; #through;
         case .build_debug_and_run; #through;
         case .build_release; #through;
-        case .build_release_and_run;
+        case .build_release_and_run; #through;
+        case .build_run_debug; #through;
+        case .build_run_release;
             if !strings.contains(line, #char ":") {
                 error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
                 return false, error_msg;
@@ -330,14 +334,15 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
             config := *build_configs[build_mode];
             if key == {
                 case "name";
-                config.name = copy_string(value);
+                config.name = copy_string(value, console_allocator);
 
                 case "dir";
                 // working_directory in task runner requires backslashes
-                config.working_directory = new_strings.replace(value, "/", "\\");
+                config.working_directory = new_strings.replace(value, "/", "\\", allocator=console_allocator);
 
                 case "command";
-                array_add(*config.commands, copy_string(value));
+                print("command: [%]\n", value);
+                array_add(*config.commands, copy_string(value, console_allocator));
 
                 case;
                 error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
@@ -707,6 +712,8 @@ Config_Parser :: struct {
         build_release;
         build_debug_and_run;
         build_release_and_run;
+        build_run_debug;
+        build_run_release;
     };
     WORKSPACE_SUBSECTIONS :: string.[
         // Must match the order of the enum above
@@ -718,6 +725,8 @@ Config_Parser :: struct {
         "[build release]",
         "[build debug and run]",
         "[build release and run]",
+        "[build run debug]",
+        "[build run release]",
     ];
     build_mode : Build_Mode;
 

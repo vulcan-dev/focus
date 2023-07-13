@@ -1,15 +1,25 @@
 # Mine
 
+- [?] FIX command runner!!!
+
+- [ ] Create project from folder
+- [ ] Fix herestring parsing
+- [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
+
 - [.] build system
     - [x] parse errors
-    - [ ] project config
-    - [ ] save all on build
+    - [x] project config
+    - [x] save all on build
+    - [ ] settings
+        - [ ] save all on build
+        - [ ] hide output on success
+        - [ ] error toast timeout
 - [.] output window
     - [ ] clickable
-    - [.] threaded !!!FIX threading!!!
+    - [x] threaded !!!FIX threading!!!
     - [ ] color errors
     - [x] don't save
-    - [ ] don't show in open dialogs
+    - [x] don't show in open dialogs
 
 - [ ] next/prev search result
 - [ ] case conversion
@@ -30,6 +40,9 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] (esc-esc): keymap for hide all (output window / errors)
+- [x] Fix ctrl-tab not drawing buffer names
+- [x] FIX unsaved corrupt memory ???
 - [x] stupid goto definition
 - [x] add hook system for settings
 - [x] Show navigate dialog on splash

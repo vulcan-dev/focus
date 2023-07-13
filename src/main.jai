@@ -1,6 +1,6 @@
 DEBUG_FILE_REFRESH :: true;
 
-main :: () {
+main :: () #dump {
     cpu_info = get_cpu_info();
 
     platform_setup();
@@ -26,17 +26,17 @@ main :: () {
     load_global_config(fallback_to_default_on_failure = true);
     init_workspace();
     init_buffers();
-    init_run_command();
+    init_console();
 
     if config.settings.open_on_monitor_one {
         window_x = 1913;
         window_y = 0;
         window_width = 1549;
         window_height = 1048;
-        //#if DEBUG {
-        //    window_width = window_width * 2 / 3;
-        //    window_height = window_height * 2 / 3;
-        //}
+        #if DEBUG {
+            window_width = window_width * 2 / 3;
+            window_height = window_height * 2 / 3;
+        }
     }
     else {
         window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
@@ -232,6 +232,14 @@ main :: () {
                         buffer_switcher_hot = event.key_pressed != 0;
                     }
 
+                    // hard code Escape-Escape to close everything extraneous
+                    if event.key_pressed {
+                        if event.key_code == .ESCAPE && prev_key_pressed == .ESCAPE {
+                            cleanup_extraneous_windows();
+                        }
+                        prev_key_pressed = event.key_code;
+                    }
+
                 case .MOUSE_WHEEL;
                     #if OS != .MACOS {
                         if ctrl_or_cmd_pressed() {
@@ -331,6 +339,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .build_debug_and_run;                              build(.DEBUG_AND_RUN);                              return true;
         case .build_release;                                    build(.RELEASE);                                    return true;
         case .build_release_and_run;                            build(.RELEASE_AND_RUN);                            return true;
+        case .build_run_debug;                                  build(.RUN_DEBUG);                                  return true;
+        case .build_run_release;                                build(.RUN_RELEASE);                                return true;
 
         case .open_project; /* deprecated */                    show_open_project_dialog();                         return true;
         case .switch_to_project;                                show_open_project_dialog();                         return true;
@@ -347,14 +357,17 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_open_file_dialog_in_navigate_mode_from_root; show_open_file_dialog(.navigate, from_root = true); return true;
 
         case .show_commands;                                    show_commands_dialog();                             return true;
+        case .show_console;                                     show_console();                                     return true;
+        case .hide_console;                                     hide_console();                                     return true;
+        case .toggle_console;                                   toggle_console();                                   return true;
 
         case .dump_key_mappings;                                dump_key_mappings();                                return true;
 
         case .move_to_previous_editor_history;                  move_to_previous_editor_history();                  return true;
         case .move_to_next_editor_history;                      move_to_next_editor_history();                      return true;
 
-        case .move_to_previous_buffer;                          move_to_previous_editor_history(by_buffer = true);  return true;
-        case .move_to_next_buffer;                              move_to_next_editor_history    (by_buffer = true);  return true;
+        case .move_to_previous_buffer;                          move_to_previous_buffer();                          return true;
+        case .move_to_next_buffer;                              move_to_next_buffer();                              return true;
 
         case .jump_to_error;                                    jump_to_error();
 
@@ -510,6 +523,11 @@ decrease_font_size :: () {
 reset_font_size_to_default :: () {
     font_size = default_font_size;
     init_fonts_and_dependent_things();
+}
+
+cleanup_extraneous_windows :: () {
+    clear_user_messages();
+    hide_console();
 }
 
 panic :: (format_string: string, args: .. Any, exit_code : s32 = 1) {
@@ -731,7 +749,7 @@ dont_ignore_next_window_resize := false;
 #load "meow_hash.jai";
 #load "user_messages.jai";
 #load "eye_tracking.jai";
-#load "run_command.jai";
+#load "console.jai";
 #load "threads.jai";
 
 #load "widgets/text_input.jai";
@@ -790,7 +808,7 @@ File_Async :: #import "File_Async";
 Simp  :: #import "Simp";
 Input :: #import "Input";
 
-DEBUG :: #run get_build_options().math_bounds_check == .FATAL;  // this is a sloppy way of checking whether we're in debug mode!
+DEBUG :: #run get_build_options().arithmetic_overflow_check == .FATAL;  // this is a sloppy way of checking whether we're in debug mode!
 
 MAX_BUFFER_SIZE_FOR_HIGHLIGHTS :: 5 * 1024 * 1024;
 
@@ -836,3 +854,5 @@ Embedded_Font :: struct {
     name: string;
     data: string;
 }
+
+prev_key_pressed : Input.Key_Code;

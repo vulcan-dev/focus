@@ -842,7 +842,11 @@ Buffer :: struct {
     bytes: [..] u8;
     line_starts: [..] s32;       // real offsets of newlines in the bytes array
 
-    colors: [..] u8;             // we color each byte (even for multi-byte chars). TODO: change this to range-based coloring
+    union {
+        colors: [..] u8;         // We color each byte (even for multi-byte chars). TODO: change this to range-based coloring
+        indent_level: [..] s8;   // Store the indent level at the end of each line.  We can overlap the colors with the same info,
+                                 //   because \n doesn't need to be colored.
+    }
 
     // TODO: put into enum_flags
     has_file               := false;  // a buffer might not have a corresponding file

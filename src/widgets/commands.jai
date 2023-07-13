@@ -143,6 +143,11 @@ commands := #run Command.[
     .{ .build_debug_and_run,                                "Build: Debug and Run",               0, .None },
     .{ .build_release,                                      "Build: Release ",                    0, .None },
     .{ .build_release_and_run,                              "Build: Release and Run",             0, .None },
+    .{ .build_run_debug,                                    "Build: Run Debug",                   0, .None },
+    .{ .build_run_release,                                  "Build: Run Release",                 0, .None },
+
+    .{ .show_console,                                       "Show Console",                       0, .None },
+    .{ .hide_console,                                       "Hide Console",                       0, .None },
 
     .{ .switch_to_project,                                  "Switch To Project",                  0, .None },
     .{ .open_projects_directory,                            "Open Projects Directory",            0, .None },

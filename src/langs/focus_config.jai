@@ -78,6 +78,8 @@ try_parsing_header :: (using tokenizer: *Tokenizer, token: *Token) {
         case "[build debug and run]";       token.type = .header;
         case "[build release]";             token.type = .header;
         case "[build release and run]";     token.type = .header;
+        case "[build run debug]";           token.type = .header;
+        case "[build run release]";         token.type = .header;
 
         case "[user interface]";            token.type = .header; section = .ui;
         case "[colors]";                    token.type = .header; section = .colors;

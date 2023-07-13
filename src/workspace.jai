@@ -201,6 +201,7 @@ hard_reload_workspace :: () {
     array_reset_keeping_memory(*project_dirs);
     init_workspace();
     init_buffers();
+    init_console();
     reopen_visible_editors(old_editor_state);
     start_initial_workspace_scan();
 ;

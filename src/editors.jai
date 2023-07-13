@@ -209,6 +209,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .indent_or_go_to_next_tabstop;     indent_or_tab                       (editor, buffer); keep_selection = true;
         case .indent;                           indent_lines                        (editor, buffer); keep_selection = true;
         case .unindent;                         unindent_lines                      (editor, buffer); keep_selection = true;
+        case .autoindent;                       autoindent_lines                    (editor, buffer); keep_selection = true;
         case .toggle_comment;                   toggle_comment                      (editor, buffer); keep_selection = true;
         case .toggle_block_comment;             toggle_block_comment                (editor, buffer); keep_selection = true;
         case .select_line;                      select_lines                        (editor, buffer); keep_selection = true;
@@ -402,14 +403,14 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) {
 }
 
 jump_to_error :: () {
-    if !error_exists  return;
+    if !build_error_exists  return;
 
-    editors_open_file(last_error.file.full_path);
+    editors_open_file(last_build_error.path);
     editor := *open_editors[editors.active];
     buffer := *open_buffers[editor.buffer_id];
 
     cursor := leave_only_original_cursor(editor);
-    position := coords_to_offset(buffer, last_error.coords);
+    position := coords_to_offset(buffer, last_build_error.coords);
     cursor.pos = position;
     cursor.sel = position;
     add_paste_animation(editor, get_selection(cursor));
@@ -1133,6 +1134,7 @@ restore_cursor_state :: (using editor: *Editor, cursor_state: [] Cursor.State) {
 }
 
 make_editor_active :: (editor_id: s64) {
+    assert(editor_id >= 0);
     if editor_id < 0  return;
 
     assert(editor_id < open_editors.count, "Trying to activate editor %, but the last available one is %", editor_id, open_editors.count - 1);
@@ -1339,6 +1341,8 @@ save_all :: (editor: *Editor, buffer: *Buffer) {
 }
 
 switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := false) {
+    new_active_editor := editors.active;
+
     if editors.layout == {
         case .None; return;
 
@@ -1349,13 +1353,13 @@ switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := fa
                 case .left;
                     editors.left   = duplicated_editor;
                     editors.right  = editors.active;
-                    editors.active = editors.left;
+                    new_active_editor = editors.left;
                     editors_start_moving_splitter(0.5, start = 0.0);
                 case .right; #through;
                 case .other;
                     editors.left   = editors.active;
                     editors.right  = duplicated_editor;
-                    editors.active = editors.right;
+                    new_active_editor = editors.right;
                     editors_start_moving_splitter(0.5, start = 1.0);
             }
             editors.layout = .Double;
@@ -1376,11 +1380,14 @@ switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := fa
                     editors.right  = duplicated_editor;
                     editors.left   = editors.active;
                 }
-                editors.active = duplicated_editor;
+                new_active_editor = duplicated_editor;
             }
-            editors.active = ifx side == .left then editors.left else editors.right;
+            else {
+                new_active_editor = ifx side == .left then editors.left else editors.right;
+            }
     }
 
+    make_editor_active(new_active_editor);
     editor := *open_editors[editors.active];
     maybe_mark_buffer_as_deleted(editor.buffer_id);  // check in case we missed that it's deleted
 
@@ -1521,6 +1528,7 @@ new_edit_group_required_for_action :: (action: Action_Editors, cursor: Cursor) -
         case .indent_or_go_to_next_tabstop;     return true;
         case .indent;                           return true;
         case .unindent;                         return true;
+        case .autoindent;                       return true;
         case .duplicate_lines;                  return true;
         case .move_selected_lines_up;           return true;
         case .move_selected_lines_down;         return true;
@@ -2161,6 +2169,53 @@ unindent_lines :: (editor: *Editor, buffer: *Buffer, only_unindent_closing_brack
 
     editor.cursor_moved = .unimportant;
 }
+
+autoindent_lines :: (editor: *Editor, buffer: *Buffer) {
+    spaces   := ifx config.settings.insert_spaces_when_pressing_tab get_tmp_spaces(TAB_SIZE) else "\t";
+    tab_size := cast(s32) spaces.count;
+
+    // Find lines which will be affected (we don't want to indent the same line more than once if it has more than 1 cursor on it)
+    line_starts, last_line_end_offset := get_line_starts_for_lines_with_cursors_tmp(editor, buffer);
+
+    // Indent cursors
+    //for * cursor : editor.cursors {
+    //    pos := cursor.pos;
+    //    sel := cursor.sel;
+    //    for line_start : line_starts { // @tabs
+    //        if line_start <= pos then cursor.pos += tab_size;
+    //        if line_start <= sel then cursor.sel += tab_size;
+    //        if line_start > pos && line_start > sel break;
+    //    }
+    //    cursor.col_wanted += tab_size;
+    //}
+
+    // Build a replacement string
+    b: String_Builder;  // not using the temp allocator because the string may be too large
+    array_add(*line_starts, last_line_end_offset);
+    for 0..line_starts.count-2 {
+        start, end := line_starts[it], line_starts[it+1];
+        s := to_string(array_view(buffer.bytes, start, end-start));
+        trimmed := strings.trim_start(s);
+        if trimmed {
+            if start > 0 {
+                for 1 .. buffer.indent_level[start - 1]
+                    append(*b, spaces);
+            }
+            append(*b, trimmed);
+        }
+        else {
+            append(*b, s);
+        }
+    }
+    new_str := builder_to_string(*b);
+    defer free(new_str);
+
+    range := Offset_Range.{ start = xx line_starts[0], end = xx last_line_end_offset };
+    replace_range(buffer, range, new_str);
+
+    editor.cursor_moved = .unimportant;
+}
+
 
 remove_additional_cursors :: (editor: *Editor) {
     cursor := leave_only_original_cursor(editor);

@@ -85,6 +85,9 @@ draw_frame :: () {
             draw_splitter(splitter_rect, split_x, .editor_splitter);
     }
 
+    //if editors.layout == .None && active_global_widget == .editors && current_project_name
+    //    active_global_widget = .open_project_dialog;
+
     if active_global_widget == {
         case .open_file_dialog;         draw_open_file_dialog();
         case .finder;                   draw_finder();
@@ -97,7 +100,7 @@ draw_frame :: () {
     draw_user_messages(screen, footer_height);
 
     if buffer_switcher_hot && buffer_switcher_index >= 0
-        draw_buffer_switcher_dialog();
+            draw_buffer_switcher_dialog();
 
     if eye_tracking_active && eye_tracking_hot {
         size :: 2.0;
@@ -326,6 +329,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
 }
 
 draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui_Id, total_editor_area := Rect.{}) {
+    assert(editor_id >= 0);
     scrollbar_id := get_ui_id_from_loc(parent_id = ui_id);
 
     footer_rect, rect := cut_bottom(main_area, footer_height);
@@ -504,6 +508,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         // Handle editor scrolling here because we only know the layout at this point.
         assert(!buffer.dirty);
         max_y_scroll := max(cast(s32)((buffer.line_starts.count - 2) * line_height), 0);
+        if editor_id == editors.floating  max_y_scroll = max(max_y_scroll - xx rect.h + xx line_height, 0);
 
         if (ui.hot_last_frame == ui_id || ui.hot_last_frame == scrollbar_id) && mouse_pointer_is_within(rect) && mouse.scroll_y_delta != 0 && !dont_scroll_this_frame {
             // Mousewheel scrolling - vertical
@@ -557,7 +562,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             cursor_pos_from_top := (cursor_coords[main_cursor].pos.line + config.settings.scroll_to_cursor_line_offset) * line_height;
             top_target := cast(s32)(cursor_pos_from_top - rect.h / 2);
-            if top_target < 0 then top_target = 0;
+            top_target = min(top_target, max_y_scroll);
             if top_target != scroll_y.target then start_animation(*viewport.scroll_y, viewport.top, top_target);
 
             scroll_to_cursor = .no;
