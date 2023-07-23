@@ -112,6 +112,11 @@ main :: () {
         eye_tracking_init();
     }
 
+    // On Wayland and X11 the main window needs to be mapped before we can get input focus.
+    // Thus we force one draw here in order to ensure we start the main loop with the window
+    // in the correct state.
+    draw_frame();
+
     while !should_quit {
         redraw_requested = true;
         if !redraw_requested platform_wait_message();
@@ -154,15 +159,17 @@ main :: () {
         screen_with_title_bar.h += 200;  // should be enough to include the title bar
 
         #if OS != .WINDOWS {
-            if !Input.input_application_has_focus {
-                // Avoid changing the cursor when the window is not in Focus.
-                // This also fixes the Cmd+Tab cursor-spawning issue where the window still thinks Cmd is held down.
+            nothing_to_do_this_frame := !redraw_requested && !Input.events_this_frame.count && !mouse.moved_this_frame;
+
+            if !Input.input_application_has_focus && nothing_to_do_this_frame {
+                // Avoid changing the cursor when the window is not in Focus, but only when we don't have anything else to
+                // do this frame. This also fixes the Cmd+Tab cursor-spawning issue where the window still thinks Cmd is held down.
                 sleep_milliseconds(1);
                 continue;
             }
 
             // Try to avoid hot-looping on Linux/macOS
-            if !redraw_requested && !Input.events_this_frame.count && !mouse.moved_this_frame {
+            if nothing_to_do_this_frame {
                 sleep_milliseconds(1);
                 continue;
             }
@@ -446,7 +453,7 @@ init_fonts_and_dependent_things :: () {
     }
     append(*common_icons, PEN_ICON);
     append(*common_icons, XMARK_ICON);
-    icons_string := builder_to_string(*common_icons);
+    icons_string := builder_to_string(*common_icons, allocator = temp);
 
     Simp.prepare_text(font_icons,       icons_string);
     Simp.prepare_text(font_icons_tiny, icons_string);
@@ -810,8 +817,6 @@ File_Async :: #import "File_Async";
 Simp  :: #import "Simp";
 Input :: #import "Input";
 
-DEBUG :: #run get_build_options().arithmetic_overflow_check == .FATAL;  // this is a sloppy way of checking whether we're in debug mode!
-
 MAX_BUFFER_SIZE_FOR_HIGHLIGHTS :: 5 * 1024 * 1024;
 
 #scope_file
@@ -856,5 +861,7 @@ Embedded_Font :: struct {
     name: string;
     data: string;
 }
+
+DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
 
 prev_key_pressed : Input.Key_Code;
