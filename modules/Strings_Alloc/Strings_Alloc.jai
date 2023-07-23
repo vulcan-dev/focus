@@ -913,9 +913,6 @@ empty :: () -> string #expand {
 
 
 hex_char_value :: inline (c: u8) -> u8 {
-    if c >= hex_char_values.count  return 0;
-    return hex_char_values[c];
-
     hex_char_values :: u8.[0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                            0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                            0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -923,6 +920,9 @@ hex_char_value :: inline (c: u8) -> u8 {
                            0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                            0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                            0, 10, 11, 12, 13, 14, 15];
+
+    if c >= hex_char_values.count  return 0;
+    return hex_char_values[c];
 }
 
 

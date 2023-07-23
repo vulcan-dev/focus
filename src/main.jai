@@ -1,6 +1,8 @@
 DEBUG_FILE_REFRESH :: true;
+DEBUG_CHANGE_COLOR :: false;
+DEBUG_SMALL_WINDOW :: false;
 
-main :: () #dump {
+main :: () {
     cpu_info = get_cpu_info();
 
     platform_setup();
@@ -33,7 +35,7 @@ main :: () #dump {
         window_y = 0;
         window_width = 1549;
         window_height = 1048;
-        #if DEBUG {
+        #if DEBUG && DEBUG_SMALL_WINDOW {
             window_width = window_width * 2 / 3;
             window_height = window_height * 2 / 3;
         }

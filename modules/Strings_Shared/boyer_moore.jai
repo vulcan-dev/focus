@@ -17,7 +17,7 @@ boyer_moore_first_index :: (haystack: string, needle: string, start_index: int, 
         make_good_suffix_delta(needle, compare, false);
     }
 
-    haystack_ptr := haystack.data + cast(u64)(needle.count - 1 + start_index);
+    haystack_ptr := haystack.data + (needle.count - 1 + start_index);
     haystack_end := haystack.data + cast(u64)haystack.count;
     needle_end := needle.count - 1;
 

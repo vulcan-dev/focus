@@ -19,6 +19,7 @@ build :: () {
     optimized := false;
     options.output_executable_name = "focus_debug";
     set_optimization(*options, .DEBUG);
+    //options.enable_bytecode_inliner = true;
 
     for arg: args {
         if arg == {
