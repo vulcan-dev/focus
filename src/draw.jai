@@ -1020,7 +1020,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         top_rect, results_rect := cut_top(bar_rect, top_rect_height);
 
-        draw_rounded_rect_with_shadow(bar_rect, Colors.BACKGROUND_LIGHT);
+        draw_rounded_rect_with_shadow(bar_rect, Colors.MOTIF);
 
         maybe_set_hot_or_active(input_id,   bar_rect, .NORMAL);
         maybe_set_hot_or_active(results_id, bar_rect, .NORMAL);
@@ -2416,7 +2416,7 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     input_rect := shrink(bar_rect, margin);
     input_rect = cut_right(input_rect, input_rect.w - (label_width + margin));
 
-    draw_rounded_rect_with_shadow(bar_rect, Colors.BACKGROUND_LIGHT);
+    draw_rounded_rect_with_shadow(bar_rect, Colors.MOTIF);
 
     pen := Vector2.{
         x = bar_rect.x + margin,
@@ -2437,7 +2437,7 @@ draw_buffer_switcher_dialog :: (active_rect: Rect) {
     box_rect := cut_top(active_rect, footer_height);
     if !is_valid(box_rect) return;
 
-    draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
+    draw_rounded_rect_with_shadow(box_rect, Colors.MOTIF, radius = rounding_radius_large);
 
     push_scissor(box_rect);
     defer pop_scissor();

@@ -1,13 +1,11 @@
 # Mine
 
-- [ ] color debug different but keep dev the same!
 
 - [?] FIX command runner!!!
 
 - [ ] Create project from folder
 - [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [ ] search broken? possibly same problem as memory crash?
-- [ ] Fix gotoline position being opposite when floating editor open
 
 - [.] build system
     - [x] parse errors
@@ -43,6 +41,8 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] Fix gotoline position being opposite when floating editor open
+- [x] color debug different but keep dev the same!
 - [x] Fix herestring parsing
 - [x] Remove title bar, move footer to top
 - [x] (esc-esc): keymap for hide all (output window / errors)
