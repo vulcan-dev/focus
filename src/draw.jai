@@ -35,14 +35,13 @@ draw_frame :: () {
         case .Single;
             editors_snap_splitter(0.5);
             draw_editor(editors.active, screen, footer_height, .editor_single);
+            active_pane_rect = screen;
             if editors.floating >= 0 {
                 split_x := screen.w * 0.5;
                 left_rect, right_rect := cut_left(screen, split_x, margin = 2);
                 draw_editor(editors.floating, get_floating_area(right_rect), 0, .editor_floating, screen);
-                active_pane_rect = floating_area;
-            }
-            else {
-                active_pane_rect = screen;
+                if editors.active == editors.floating
+                    active_pane_rect = floating_area;
             }
         case .Double;
             // Drag splitter
@@ -80,13 +79,12 @@ draw_frame :: () {
             draw_editor(editors.left,  left_rect,  footer_height, .editor_left,  screen);
             draw_editor(editors.right, right_rect, footer_height, .editor_right, screen);
 
+            active_pane_rect = ifx editors.active == editors.left then left_rect else right_rect;
             if editors.floating >= 0 {
                 rect := ifx editors.active == editors.left then right_rect else left_rect;
                 draw_editor(editors.floating, get_floating_area(rect), 0, .editor_floating, screen);
-                active_pane_rect = floating_area;
-            }
-            else {
-                active_pane_rect = ifx editors.active == editors.left then left_rect else right_rect;
+                if editors.active == editors.floating
+                    active_pane_rect = floating_area;
             }
 
             splitter_rect := make_rect(left_rect.x + left_rect.w, left_rect.y + footer_height, 2, left_rect.h - footer_height);
@@ -108,7 +106,7 @@ draw_frame :: () {
     draw_user_messages(screen, footer_height);
 
     if buffer_switcher_hot && buffer_switcher_index >= 0
-            draw_buffer_switcher_dialog();
+            draw_buffer_switcher_dialog(active_pane_rect);
 
     if eye_tracking_active && eye_tracking_hot {
         size :: 2.0;
@@ -2402,8 +2400,10 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     margin  := floor(8 * dpi_scale);
     padding := floor(4 * dpi_scale);
 
+    go_to_width : float32 : 200;
+
     label_width := cast(float) Simp.prepare_text(font_ui, "Go to line");
-    width  := max(active_editor_rect.w * 0.5, 6 * char_x_advance + 2 * (margin + padding + 1));
+    width  := max(go_to_width, 6 * char_x_advance + 2 * (margin + padding + 1));
     height := font_ui_line_height + 2 * (margin + padding + 1);
 
     bar_rect := cut_top(active_editor_rect, height);
@@ -2426,17 +2426,15 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     draw_text_input(*go_to_line_dialog.input, input_rect, ui_id = input_id, active = true, label = " line number");
 }
 
-draw_buffer_switcher_dialog :: () {
+draw_buffer_switcher_dialog :: (active_rect: Rect) {
     margin  := floor(4 * dpi_scale);
     padding := floor(4 * dpi_scale);
 
     width  := screen.w - margin * 2;
     height := font_ui_line_height + 2 * (padding + 1);
 
-    box_rect := cut_top(screen, height);
-    box_rect = cut_right(box_rect, width);
-
-    box_rect = make_rect(margin, screen.h - margin - height, width, height);
+    //box_rect := make_rect(margin, screen.h - margin - height, width, height);
+    box_rect := cut_top(active_rect, footer_height);
     if !is_valid(box_rect) return;
 
     draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
