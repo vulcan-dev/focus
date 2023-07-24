@@ -130,7 +130,7 @@ jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
     }
     */
 
-    if selected_text && selected_text != to_string(finder.input.text) && offset_to_line(buffer, cursor.pos) == offset_to_line(buffer, cursor.sel) {
+    if selected_text && selected_text != to_string(finder.input.text) && offset_to_line(editor, buffer, cursor.pos) == offset_to_line(editor, buffer, cursor.sel) {
         definition := tprint("%:", selected_text);
         finder_open(definition);
     }
@@ -249,7 +249,7 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 
     // Check for here-string
-    if last_tokens[1].type == .compiler_directive && last_tokens[1].compiler_directive == .directive_string {
+    if last_tokens[0].type == .compiler_directive && last_tokens[0].compiler_directive == .directive_string {
         token.type = .here_string;
         end := find_index_from_left(buf, identifier_str, start_index = t - buf.data);
         if end < 0 { t = max_t; return; }

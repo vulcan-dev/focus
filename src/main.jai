@@ -1,9 +1,14 @@
-DEBUG_FILE_REFRESH :: true;
-DEBUG_CHANGE_COLOR :: false;
+DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
+DEBUG_CHANGE_COLOR :: true;
 DEBUG_SMALL_WINDOW :: false;
+
+FOOTER_AT_TOP :: true;
 
 main :: () {
     cpu_info = get_cpu_info();
+
+    args := get_command_line_arguments();
+    debug_change_color &= args[0] == "focus_debug";
 
     platform_setup();
 
@@ -31,9 +36,9 @@ main :: () {
     init_console();
 
     if config.settings.open_on_monitor_one {
-        window_x = 1913;
+        window_x = 1920;
         window_y = 0;
-        window_width = 1549;
+        window_width = 1542;
         window_height = 1048;
         #if DEBUG && DEBUG_SMALL_WINDOW {
             window_width = window_width * 2 / 3;
@@ -54,8 +59,6 @@ main :: () {
             if !success then log_error("Couldn't load project config '%'", session.project);
         }
     }
-
-    args := get_command_line_arguments();
 
     if args.count == 2 {
         // Check if a directory or file was passed in the command line (or by drag/dropping a file/directory onto the executable)
@@ -335,6 +338,9 @@ main :: () {
     // report := make_leak_report();
     // log_leak_report(report);
 }
+
+debug_change_color := DEBUG_CHANGE_COLOR;
+
 
 handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placement = .in_place) -> handled: bool {
     if action == {
@@ -861,7 +867,5 @@ Embedded_Font :: struct {
     name: string;
     data: string;
 }
-
-DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
 
 prev_key_pressed : Input.Key_Code;

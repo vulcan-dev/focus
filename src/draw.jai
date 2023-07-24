@@ -1,3 +1,11 @@
+footer_height : float32 : 30;
+#if FOOTER_AT_TOP {
+    editor_top_margin :: footer_height * 1.5;
+}
+else {
+    editor_top_margin : float32 : 0;
+}
+
 draw_frame :: () {
     {
         using Colors.BACKGROUND_DARK;
@@ -11,7 +19,7 @@ draw_frame :: () {
     // Check whether we need to deactivate elements before drawing
     if !mouse.left.is_down || mouse.left.just_released then ui.active = .none;
 
-    footer_height := font_ui_line_height * 1.6;
+    //footer_height := font_ui_line_height * 1.6;
 
     active_pane_rect: Rect = ---;
 
@@ -328,11 +336,17 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
     }
 }
 
+
 draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui_Id, total_editor_area := Rect.{}) {
     assert(editor_id >= 0);
     scrollbar_id := get_ui_id_from_loc(parent_id = ui_id);
 
-    footer_rect, rect := cut_bottom(main_area, footer_height);
+    #if FOOTER_AT_TOP {
+        footer_rect, rect := cut_top(main_area, footer_height);
+    }
+    else {
+        footer_rect, rect := cut_bottom(main_area, footer_height);
+    }
     max_width := cast(float) config.settings.max_editor_width * dpi_scale;
     if max_width > 0 && rect.w > max_width {
         rect.x += (rect.w - max_width) / 2;
@@ -1004,6 +1018,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         bar_rect := cut_top(main_area, bar_rect_height);
         bar_rect = cut_right(bar_rect, bar_rect.w * width_percentage);
         bar_rect.x -= 2 * char_x_advance;
+        bar_rect.y -= editor_top_margin;
 
         top_rect, results_rect := cut_top(bar_rect, top_rect_height);
 
@@ -2394,6 +2409,7 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     bar_rect := cut_top(active_editor_rect, height);
     bar_rect = cut_right(bar_rect, width);
     bar_rect.x -= 2 * char_x_advance;
+    bar_rect.y -= editor_top_margin;
 
     maybe_set_hot_or_active(input_id, bar_rect, .NORMAL);
 
@@ -2845,6 +2861,24 @@ draw_button :: (font: *Simp.Dynamic_Font, label: string, color: Color, text_colo
 
     return ui.active_last_frame == button_ui_id && mouse_pointer_is_within(button) && mouse.left.just_released, button.w;
 }
+
+get_floating_area :: (rect: Rect) -> Rect {
+    if #complete editors.layout == {
+        case .None;
+        floating_area = shrink(rect, 20);
+        height :: 300;
+        floating_area.h = height;
+
+        case .Single; #through;
+        case .Double;
+        floating_area = shrink(rect, 20);
+        height :: 300;
+        floating_area.y += floating_area.h - height - editor_top_margin;
+        floating_area.h = height;
+    }
+    return floating_area;
+}
+
 
 #scope_file
 

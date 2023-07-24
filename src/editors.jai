@@ -418,7 +418,7 @@ jump_to_error :: () {
     buffer := *open_buffers[editor.buffer_id];
 
     cursor := leave_only_original_cursor(editor);
-    position := coords_to_offset(buffer, last_build_error.coords);
+    position := coords_to_offset(editor, buffer, last_build_error.coords);
     cursor.pos = position;
     cursor.sel = position;
     add_paste_animation(editor, get_selection(cursor));
@@ -919,8 +919,8 @@ get_line_info :: (using editor: *Editor, buffer: Buffer, line: s32) -> start: s3
     if line < 0 || line >= buffer.line_starts.count
         return 0, 0, 0;
 
-    start := get_line_start_offset(buffer, line);
-    end := get_line_end_offset(buffer, line);
+    start := get_line_start_offset(editor, buffer, line);
+    end := get_line_end_offset(editor, buffer, line);
     assert(end >= start);
     return start, end, end - start;
 }
@@ -949,7 +949,7 @@ jump_to_closest_line :: (using editor: *Editor, buffer: Buffer, coords: Coords, 
     cursors_stop_blinking();
 
     cursor := leave_only_original_cursor(editor);
-    cursor.pos = coords_to_offset(buffer, .{line=line, col=coords.col});
+    cursor.pos = coords_to_offset(editor, buffer, .{line=line, col=coords.col});
     cursor.sel = cursor.pos;
     cursor.col_wanted = -1;
     cursor_moved = .jumped;
@@ -1259,35 +1259,35 @@ create_cursors_around :: (using editor: *Editor, buffer: Buffer) {
     top_cursor    := cursors[0];
     bottom_cursor := cursors[cursors.count-1];
     original    := cursors[original_cursor];
-    original_pos_coords := offset_to_coords(buffer, original.pos);
-    original_sel_coords := offset_to_coords(buffer, original.sel);
+    original_pos_coords := offset_to_coords(editor, buffer, original.pos);
+    original_sel_coords := offset_to_coords(editor, buffer, original.sel);
 
     add_cursors :: (position: Coords, direction: s32, terminator_line: int) #expand {
         while position.line != terminator_line {
             position.line += direction;
-            start := get_line_start_offset(buffer, position.line);
-            end := get_line_end_offset(buffer, position.line);
+            start := get_line_start_offset(editor, buffer, position.line);
+            end := get_line_end_offset(editor, buffer, position.line);
             if end - start < original_pos_coords.col
                 break;
 
             cursor := array_add(*cursors);
             <<cursor = top_cursor;
-            cursor.pos = coords_to_offset(buffer, position);
+            cursor.pos = coords_to_offset(editor, buffer, position);
             cursor.col_wanted = original_pos_coords.col;
 
             if has_selection(original) {
                 sel_coords := position;
                 sel_coords.line += original_sel_coords.line - original_pos_coords.line;
                 sel_coords.col  += original_sel_coords.col  - original_pos_coords.col;
-                cursor.sel = coords_to_offset(buffer, sel_coords);
+                cursor.sel = coords_to_offset(editor, buffer, sel_coords);
             } else {
                 cursor.sel = cursor.pos;
             }
         }
     }
 
-    add_cursors(offset_to_coords(buffer, top_cursor.pos), -1, 0);
-    add_cursors(offset_to_coords(buffer, top_cursor.pos), +1, buffer.line_starts.count - 1);
+    add_cursors(offset_to_coords(editor, buffer, top_cursor.pos), -1, 0);
+    add_cursors(offset_to_coords(editor, buffer, top_cursor.pos), +1, buffer.line_starts.count - 1);
 
     main_cursor = cursors.count - 1;
 
@@ -3338,23 +3338,6 @@ line_col :: (pos: s32) -> string #expand {
 
 open_floating :: (editor: *Editor, buffer: *Buffer) {
     editors_open_buffer(editor.buffer_id, .floating);
-}
-
-get_floating_area :: (rect: Rect) -> Rect {
-    if #complete editors.layout == {
-        case .None;
-        floating_area = shrink(rect, 20);
-        height :: 300;
-        floating_area.h = height;
-
-        case .Single; #through;
-        case .Double;
-        floating_area = shrink(rect, 20);
-        height :: 300;
-        floating_area.y += floating_area.h - height;
-        floating_area.h = height;
-    }
-    return floating_area;
 }
 
 #scope_file

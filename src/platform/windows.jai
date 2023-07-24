@@ -67,6 +67,11 @@ platform_get_centered_window_dimensions :: (open_on_biggest: bool) -> s32, s32, 
 
 platform_create_window :: () {
     window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = as_3_floats(Colors.BACKGROUND));
+    old_style := GetWindowLongW(window, GWL_STYLE);
+    //old_ex_style := GetWindowLongW(hwnd, GWL_EXSTYLE);
+    //SetWindowLongW(window, GWL_STYLE, old_style & ~cast(s32)(WS_CAPTION | WS_SYSMENU | WS_THICKFRAME));
+    SetWindowLongW(window, GWL_STYLE, old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME));
+    SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
 }
 
 platform_maximize_window :: (window: Window_Type) {
