@@ -1,13 +1,26 @@
 highlight_csharp_syntax :: (using buffer: *Buffer) {
-    using tokenizer := Tokenizer.{
+    tokenizer := Tokenizer.{
         buf        = to_string(bytes),
         max_t      = bytes.data + bytes.count,
         t          = bytes.data,
         last_token = .{0, 0, .eof}
     };
+    highlight_csharp_syntax(buffer, *tokenizer);
+}
 
+highlight_csharp_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
+    tokenizer := Tokenizer.{
+        buf        = to_string(bytes),
+        max_t      = bytes.data + start_index + count,
+        t          = bytes.data + start_index,
+        last_token = .{0, 0, .eof}
+    };
+    highlight_csharp_syntax(buffer, *tokenizer);
+}
+
+highlight_csharp_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
     while true {
-        token := get_next_token(*tokenizer);
+        token := get_next_token(tokenizer);
         if token.type == .eof break;
 
         // Maybe retroactively highlight a "method("

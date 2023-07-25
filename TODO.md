@@ -1,11 +1,18 @@
 # Mine
 
+- [ ] Email about polymorph match with identical named types
 
 - [?] FIX command runner!!!
 
+- [ ] Zen
+- [ ] MD
+- [x] Parse herestring langs
+- [ ] Change background per line
+- [ ] Developer tool show scope at cursor
 - [ ] Create project from folder
 - [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [ ] search broken? possibly same problem as memory crash?
+- [ ] Instance font size per editor
 
 - [.] build system
     - [x] parse errors

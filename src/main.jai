@@ -775,6 +775,7 @@ dont_ignore_next_window_resize := false;
 #load "widgets/commands.jai";
 #load "widgets/open_project.jai";
 
+#load "langs.jai";
 #load "langs/jai.jai";
 #load "langs/c.jai";
 #load "langs/csharp.jai";

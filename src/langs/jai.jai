@@ -5,6 +5,20 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
+    highlight_jai_syntax_(buffer, *tokenizer);
+}
+
+highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
+    tokenizer: Tokenizer = ---;
+    tokenizer.the_buffer = buffer;
+    tokenizer.buf   = to_string(bytes);
+    tokenizer.max_t = bytes.data + start_index + count;
+    tokenizer.t     = bytes.data + start_index;
+
+    highlight_jai_syntax_(buffer, *tokenizer);
+}
+
+highlight_jai_syntax_ :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
     color: Code_Color;
 
     // @Autoindent
@@ -15,7 +29,7 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
     is_new_line := false;
 
     while true {
-        token := get_next_token(*tokenizer);
+        token := get_next_token(tokenizer);
         if token.type == .eof break;
 
         // @Autoindent
@@ -24,8 +38,6 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
         //    indent_level[line_starts[line_start_index] - 1] = current_indent_level;
         //    is_new_line = true;
         //}
-
-        using tokenizer;
 
         // Maybe retroactively highlight a function
         is_dedent := false;
@@ -71,7 +83,19 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
         prev = token;
 
         color := COLOR_MAP[token.type];
-        memset(colors.data + token.start, xx color, token.len);
+        handled := true;
+
+        if token.type == .here_string {
+            handled = parse_here_string(buffer, token);
+            if handled {
+                memset(colors.data + token.start, xx color, token.sublen);
+                memset(colors.data + token.start + token.len - token.sublen, xx color, token.sublen);
+            }
+        }
+
+        if !handled {
+            memset(colors.data + token.start, xx color, token.len);
+        }
     }
 
     // @Autoindent
@@ -249,12 +273,41 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 
     // Check for here-string
-    if last_tokens[0].type == .compiler_directive && last_tokens[0].compiler_directive == .directive_string {
+    if prev.type == .compiler_directive && prev.compiler_directive == .directive_string {
         token.type = .here_string;
+        token.sublen = xx identifier_str.count;
         end := find_index_from_left(buf, identifier_str, start_index = t - buf.data);
         if end < 0 { t = max_t; return; }
         t = buf.data + end + identifier_str.count;
     }
+}
+
+parse_here_string :: (using buffer: *Buffer, token: Token) -> handled: bool{
+    assert(token.type == .here_string);
+    if token.len < token.sublen * 2  return false;
+
+    identifier : string = ---;
+    identifier.data = bytes.data + token.start;
+    identifier.count = token.sublen;
+
+    highlight_proc : #type (*Buffer, s32, s32);
+
+    matches :: (postfix: string) -> bool #expand {
+        return strings.ends_with(identifier, postfix);
+    }
+
+    // @TODO generate this code at compile time
+    if matches("jai")
+        highlight_proc = highlight_jai_syntax;
+    else if matches("cs") || matches("csharp") || matches("c#")
+        highlight_proc = highlight_csharp_syntax;
+    else if matches("cpp") || matches("c++") || matches("c") || matches("h") || matches("h++") || matches("hpp")
+        highlight_proc = highlight_c_syntax;
+    else
+        return false;
+
+    highlight_proc(buffer, token.start + token.sublen, token.start + token.len - token.sublen);
+    return true;
 }
 
 parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
@@ -595,8 +648,6 @@ Tokenizer :: struct {
     start_t: *u8;  // cursor when starting parsing new token
     t:       *u8;  // cursor
 
-    last_tokens: [2] Token;  // to retroactively highlight functions
-    #place last_tokens;
     prev : Token;
     before_prev : Token;
 }
@@ -604,6 +655,7 @@ Tokenizer :: struct {
 Token :: struct {
     start, len: s32;
     type: Type;
+    sublen: s32;
 
     // Additional info to distinguish between keywords/punctuation
     union {
