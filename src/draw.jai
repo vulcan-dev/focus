@@ -1275,10 +1275,17 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             coords := cursor_coords[main_cursor].pos;
             if line_wrap_is_active(editor) then coords = get_real_cursor_coords(buffer, editor.cursors[main_cursor]).pos;
 
-            //#if DEBUG
-                text := tprint("Pos: %  Line: %  Col: %", cursors[main_cursor].pos, coords.line + 1, coords.col + 1);
-            //else
-            //    text := tprint("Line: %  Col: %", coords.line + 1, coords.col + 1);
+            text : string = ---;
+            {
+                builder : String_Builder;
+                #if DEBUG_SHOW_COLOR
+                    if cursors[main_cursor].pos >= 0 && cursors[main_cursor].pos < buffer.colors.count
+                        print_to_builder(*builder, "Color: %  ", buffer.colors[cursors[main_cursor].pos]);
+                // #if DEBUG
+                    print_to_builder(*builder, "Pos: %  ", cursors[main_cursor].pos);
+                print_to_builder(*builder, "Line: %  Col: %", coords.line + 1, coords.col + 1);
+                text = builder_to_string(*builder);
+            }
             width = xx Simp.prepare_text(font_ui_bold, text);
             line_col_start_x := footer_rect.x + footer_rect.w - width;
             Simp.draw_prepared_text(font_ui_bold, xx line_col_start_x, xx pen.y, color = Colors.UI_DIM);

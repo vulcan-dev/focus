@@ -5,7 +5,7 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
-    highlight_jai_syntax_(buffer, *tokenizer);
+    highlight_jai_syntax(buffer, *tokenizer);
 }
 
 highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
@@ -15,10 +15,10 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
 
-    highlight_jai_syntax_(buffer, *tokenizer);
+    highlight_jai_syntax(buffer, *tokenizer);
 }
 
-highlight_jai_syntax_ :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
+highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
     color: Code_Color;
 
     // @Autoindent

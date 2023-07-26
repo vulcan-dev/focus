@@ -1,6 +1,7 @@
 DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
 DEBUG_CHANGE_COLOR :: true;
 DEBUG_SMALL_WINDOW :: false;
+DEBUG_SHOW_COLOR :: true;
 
 FOOTER_AT_TOP :: true;
 
@@ -780,6 +781,7 @@ dont_ignore_next_window_resize := false;
 #load "langs/c.jai";
 #load "langs/csharp.jai";
 #load "langs/focus_config.jai";
+#load "langs/md.jai";
 #load "langs/worklog.jai";
 
 #if OS == .WINDOWS {

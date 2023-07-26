@@ -1013,6 +1013,7 @@ set_lang_from_path :: (buffer: *Buffer, path: string) {
             case "jai";            buffer.lang = .Jai;
             case "focus-config";   buffer.lang = .Focus_Config;
             case "cs";             buffer.lang = .CSharp;
+            case "md";             buffer.lang = .Markdown;
 
             case "c";   #through;
             case "h";   #through;
