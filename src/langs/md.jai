@@ -29,6 +29,8 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
 
         if token.type == .eof break;
 
+        //if file.name == "README.md"  print("%\n", token);
+
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
 
@@ -75,7 +77,10 @@ parse_header :: (using tokenizer: *Tokenizer, token: *Token) {
         t += 1;
     }
 
-    if header_level == {
+    if <<t != #char " " {
+        token.type = .error;
+    }
+    else if header_level == {
         case 1; token.type = .header1;
         case 2; token.type = .header2;
         case 3; token.type = .header3;
@@ -93,9 +98,13 @@ eat_until_newline :: (using tokenizer: *Tokenizer) {
     }
 }
 
+is_whitespace :: inline (char: u8) -> bool {
+    return char == #char " " || char == #char "\t" || char == #char "\r";
+}
+
 eat_white_space :: (using tokenizer: *Tokenizer) -> s32 {
     count : s32 = 0;
-    while t < max_t && is_space(<< t) {
+    while t < max_t && is_whitespace(<< t) {
         count += 1;
         t += 1;
     }

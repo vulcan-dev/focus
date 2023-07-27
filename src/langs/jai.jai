@@ -83,7 +83,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
         prev = token;
 
         color := COLOR_MAP[token.type];
-        handled := true;
+        handled := false;
 
         if token.type == .here_string {
             handled = parse_here_string(buffer, token);
@@ -306,7 +306,7 @@ parse_here_string :: (using buffer: *Buffer, token: Token) -> handled: bool{
     else
         return false;
 
-    highlight_proc(buffer, token.start + token.sublen, token.start + token.len - token.sublen);
+    highlight_proc(buffer, token.start + token.sublen, token.len - token.sublen * 2);
     return true;
 }
 

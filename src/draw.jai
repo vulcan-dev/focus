@@ -6,7 +6,11 @@ else {
     editor_top_margin : float32 : 0;
 }
 
+simp_initialized := false;
+
 draw_frame :: () {
+    if !simp_initialized  return;
+
     {
         using Colors.BACKGROUND_DARK;
         Simp.clear_render_target(r, g, b, a);

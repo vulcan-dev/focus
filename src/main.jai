@@ -1,6 +1,6 @@
 DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
 DEBUG_CHANGE_COLOR :: true;
-DEBUG_SMALL_WINDOW :: false;
+DEBUG_SMALL_WINDOW :: true;
 DEBUG_SHOW_COLOR :: true;
 
 FOOTER_AT_TOP :: true;
@@ -9,7 +9,9 @@ main :: () {
     cpu_info = get_cpu_info();
 
     args := get_command_line_arguments();
-    debug_change_color &= args[0] == "focus_debug";
+    is_standalone_debug_build := args[0] == "focus_debug";
+    debug_change_color &= is_standalone_debug_build;
+    debug_small_window &= is_standalone_debug_build;
 
     platform_setup();
 
@@ -41,7 +43,7 @@ main :: () {
         window_y = 0;
         window_width = 1542;
         window_height = 1048;
-        #if DEBUG && DEBUG_SMALL_WINDOW {
+        if DEBUG && debug_small_window {
             window_width = window_width * 2 / 3;
             window_height = window_height * 2 / 3;
         }
@@ -91,6 +93,7 @@ main :: () {
     window_width, window_height = Simp.get_render_dimensions(window);
     screen = make_rect(0, 0, window_width, window_height);
     Simp.set_render_target(window);
+    simp_initialized = true;
 
     // Init logger after we know the session dir and the config
     init_logger();
@@ -341,6 +344,7 @@ main :: () {
 }
 
 debug_change_color := DEBUG_CHANGE_COLOR;
+debug_small_window := DEBUG_SMALL_WINDOW;
 
 
 handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placement = .in_place) -> handled: bool {

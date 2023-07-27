@@ -1079,4 +1079,3 @@ Offset_Range :: struct {
 Coords_Range :: struct {
     start, end: Coords;
 }
-
