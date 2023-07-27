@@ -17,6 +17,8 @@ Color_Values :: struct {
     BACKGROUND_HIGHLIGHT    := Color.{ r = 0.097, g = 0.15, b = 0.185 };
     BACKGROUND_LIGHT        := Color.{ r = 0.102, g = 0.158, b = 0.195 };
     BACKGROUND_BRIGHT       := Color.{ r = 0.131, g = 0.202, b = 0.25 };
+    BACKGROUND_REGION       := Color.{ r = 0.131, g = 0.202, b = 0.25, a = 0.02 };
+
     SELECTION_ACTIVE        := Color.{ r = 0.11, g = 0.267, b = 0.29 };
     SELECTION_INACTIVE      := Color.{ r = 0.11, g = 0.267, b = 0.29, a = 0.5 };
     SELECTION_HIGHLIGHT     := Color.{ r = 0.99, g = 0.93, b = 0.99, a = 0.15 };

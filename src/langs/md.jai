@@ -17,40 +17,60 @@ highlight_md_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
 
 highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
     indent := 0;
+    blockquote_level := 0;
     token : Token;
     token.type = .eol;
+    is_start_of_line := true;
+    line_blockquote_level := 0;
+    prev_line_blockquote_level := 0;
+    blockquotes : [..] s32;
 
     while true {
         if token.type == .eol {
+            if line_blockquote_level != prev_line_blockquote_level {
+                if line_blockquote_level == 0 {
+                    array_add(*regions, .{blockquote_start
             indent = eat_white_space(tokenizer);
             token = get_next_token(tokenizer);
             if token.type == .eol  continue;
+            is_start_of_line = true;
         }
 
         if token.type == .eof break;
 
-        //if file.name == "README.md"  print("%\n", token);
+        if token.type == .blockquote {
+            if prev_token.type != .blockquote {
+                array_add(*blockquotes, token.start);
+            }
+            line_blockquote_level += 1;
+        }
+        else {
+            if prev_token.type == .blockquote {
+                if line_blockquote_level != prev_line_blockquote_level {
+
+            }
+            if blockquote
+            is_start_of_line = false;
+        }
 
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
 
-        token = get_next_token(tokenizer);
+        token = get_next_token(tokenizer, is_start_of_line, indent);
     }
 }
 
 #scope_file
 
-get_next_token :: (using tokenizer: *Tokenizer) -> Token {
+get_next_token :: (using tokenizer: *Tokenizer, is_start_of_line: bool, indent: s32) -> Token {
     token: Token;
     token.start = cast(s32) (t - buf.data);
     token.type  = .eof;
-    if t >= max_t return token;
+    if t >= max_t  return token;
 
-    eat_white_space(tokenizer);
+    // @TODO \
 
-    start_t = t;
-
-    if t.* == {
+    if is_start_of_line {
         case #char "\n";
         token.type = .eol;
         t += 1;
@@ -58,9 +78,31 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
         case #char "#";
         parse_header(tokenizer, *token);
 
+        case #char ">"
+        token.type = .blockquote;
+        t += 1;
+
         case;
         token.type = .default;
         eat_until_newline(tokenizer);
+    }
+    else {
+        eat_white_space(tokenizer);
+
+        start_t = t;
+
+        if t.* == {
+            case #char "\n";
+            token.type = .eol;
+            t += 1;
+
+            case #char "#";
+            parse_header(tokenizer, *token);
+
+            case;
+            token.type = .default;
+            eat_until_newline(tokenizer);
+        }
     }
 
     if t >= max_t then t = max_t;

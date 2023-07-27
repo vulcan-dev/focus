@@ -15,11 +15,12 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
 
-    highlight_jai_syntax(buffer, *tokenizer);
+    highlight_jai_syntax(buffer, *tokenizer, false);
 }
 
-highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
+highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset_regions := true) {
     color: Code_Color;
+    if reset_regions  reset_buffer_regions(buffer);
 
     // @Autoindent
     //array_reset_keeping_memory(*line_starts);
@@ -285,6 +286,8 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
 parse_here_string :: (using buffer: *Buffer, token: Token) -> handled: bool{
     assert(token.type == .here_string);
     if token.len < token.sublen * 2  return false;
+
+    add_buffer_region(buffer, token.start, token.start + token.len);
 
     identifier : string = ---;
     identifier.data = bytes.data + token.start;

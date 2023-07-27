@@ -5,6 +5,9 @@ DEBUG_SHOW_COLOR :: true;
 
 FOOTER_AT_TOP :: true;
 
+HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
+
+
 main :: () {
     cpu_info = get_cpu_info();
 
@@ -138,6 +141,13 @@ main :: () {
         current_time := cast(Time) get_time();
         frame_dt   = min(current_time - frame_time, MAX_FRAME_DT);
         frame_time = current_time;
+
+        for delayed_action: delayed_actions {
+            if delayed_action.at <= frame_time {
+                delayed_action.action();
+                remove delayed_action;
+            }
+        }
 
         old_line_height = line_height;
         for Input.get_window_resizes() {
@@ -658,6 +668,18 @@ Mouse_Button_State :: struct {
     last_double_click_time: Time;
 }
 
+Delayed_Action :: struct {
+    action : #type ();
+    at : Time;
+}
+
+delayed_actions : [..] Delayed_Action;
+
+add_delayed_action :: (action: #type (), delay: float64) {
+    array_add(*delayed_actions, .{ action, xx (frame_time + delay) });
+}
+
+
 WHEEL_SENSITIVITY :: 1.0;
 
 PEN_ICON            :: #run to_string(*convert_utf32_to_utf8(0xf304));
@@ -876,3 +898,4 @@ Embedded_Font :: struct {
 }
 
 prev_key_pressed : Input.Key_Code;
+

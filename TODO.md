@@ -1,6 +1,8 @@
 # Mine
 
-- [ ] Email about polymorph match with identical named types
+- [.] autoindent
+    - [ ] command
+    - [ ] #asm region
 
 - [?] FIX command runner!!!
 
@@ -48,6 +50,8 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] Autohide console after successful build
+- [x] Regions
 - [x] Fix gotoline position being opposite when floating editor open
 - [x] color debug different but keep dev the same!
 - [x] Fix herestring parsing
@@ -62,7 +66,6 @@
 - [x] Fix Ctrl-X!!!!
 - [x] Fix ctrl-tab
 - [x] go to matching brace
-- [x] autoindent
 - [x] autobraceclose
 - [x] dedent on }
 - [x] ctrl-tab go to previous file

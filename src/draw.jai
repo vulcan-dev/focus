@@ -876,6 +876,26 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
         }
 
+        // Draw regions
+        for region: buffer.regions {
+            start := offset_to_line(editor, buffer, region.start_offset);
+            if region.inclusive  start -= 1;
+            if start > visible_lines_end  continue;
+
+            end := offset_to_line(editor, buffer, region.end_offset);
+            if !region.inclusive  end += 1;
+            if end < visible_lines_start  continue;
+
+            start = max(start, visible_lines_start);
+            end   = min(end,   visible_lines_end);
+
+            region_rect := make_rect(
+                rect.x, text_origin.y - start * line_height,
+                rect.w, line_height * (start - end)
+            );
+            draw_rect(region_rect, Colors.BACKGROUND_REGION);
+        }
+
         // Draw text
         if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
 

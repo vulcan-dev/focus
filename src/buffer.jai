@@ -868,6 +868,14 @@ clear_buffer :: (using buffer: *Buffer) {
     clear_redos(buffer);
 }
 
+reset_buffer_regions :: (using buffer: *Buffer) {
+    array_reset(*regions);
+}
+
+add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool) {
+    array_add(*regions, .{ start_offset, end_offset, inclusive });
+}
+
 #scope_file
 
 add_edit_notification :: (using buffer: *Buffer, offset: s64, old_count: s64, new_count: s64) {
@@ -965,9 +973,14 @@ Buffer :: struct {
 
     union {
         colors: [..] u8;         // We color each byte (even for multi-byte chars). TODO: change this to range-based coloring
-        indent_level: [..] s8;   // Store the indent level at the end of each line.  We can overlap the colors with the same info,
-                                 //   because \n doesn't need to be colored.
+        indent_level: [..] s8;   // @TODO move out of union and make work
     }
+
+    regions : [..] struct {
+        start_offset : s32;
+        end_offset : s32;
+        inclusive := false;
+    };
 
     // TODO: put into enum_flags
     has_file               := false;  // a buffer might not have a corresponding file

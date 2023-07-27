@@ -97,14 +97,15 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
         defer { free(output); free(error); }
 
         if result.exit_code {
-            print("Nope\n");
             successful = false;
             break;
         }
     }
 
     if successful {
-        add_success_message(tprint("% Success!", task.title), origin=.build);
+        duration : float64 : 5;
+        add_success_message(tprint("% Success!", task.title), origin=.build, dismiss_in_seconds = duration);
+        if HIDE_CONSOLE_ON_SUCCESS  add_delayed_action(hide_console, duration);
     }
     else {
         if build_error_exists
