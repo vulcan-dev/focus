@@ -808,6 +808,7 @@ dont_ignore_next_window_resize := false;
 #load "langs/csharp.jai";
 #load "langs/focus_config.jai";
 #load "langs/md.jai";
+#load "langs/glsl.jai";
 #load "langs/worklog.jai";
 
 #if OS == .WINDOWS {
@@ -898,4 +899,3 @@ Embedded_Font :: struct {
 }
 
 prev_key_pressed : Input.Key_Code;
-
