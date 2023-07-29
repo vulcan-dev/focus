@@ -4,6 +4,7 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
     tokenizer.buf   = to_string(bytes);
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
+    tokenizer.make_next_scope_region = false;
 
     highlight_jai_syntax(buffer, *tokenizer);
 }
@@ -14,6 +15,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer.buf   = to_string(bytes);
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
+    tokenizer.make_next_scope_region = false;
 
     highlight_jai_syntax(buffer, *tokenizer, false);
 }
@@ -28,6 +30,9 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
     //line_start_index := 0;
     current_indent_level : s8 = 0;
     is_new_line := false;
+
+    scope_stack : [64] s32; // push/pop for scopes, -1 for disregard, else region start
+    scope_index := -1;
 
     while true {
         token := get_next_token(tokenizer);
@@ -55,9 +60,23 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
             }
             else if token.punctuation == .l_brace || token.punctuation == .l_bracket {
                 current_indent_level += 1;
+                if token.punctuation == .l_brace {
+                    scope_index += 1;
+                    if scope_index >= 0 && scope_index < scope_stack.count {
+                        scope_stack[scope_index] = ifx make_next_scope_region then token.start else -1;
+                    }
+                    make_next_scope_region = false;
+                }
             }
             else if token.punctuation == .r_brace || token.punctuation == .r_bracket || token.punctuation == .r_paren {
                 is_dedent = true;
+                if token.punctuation == .r_brace {
+                    if scope_index >= 0 && scope_index < scope_stack.count && scope_stack[scope_index] >= 0 {
+                        add_buffer_region(buffer, scope_stack[scope_index], token.start + 1, true);
+                        scope_stack[scope_index] = -1;
+                    }
+                    scope_index -= 1;
+                }
             }
         }
         else if token.type == .keyword {
@@ -287,7 +306,7 @@ parse_here_string :: (using buffer: *Buffer, token: Token) -> handled: bool{
     assert(token.type == .here_string);
     if token.len < token.sublen * 2  return false;
 
-    add_buffer_region(buffer, token.start, token.start + token.len);
+    add_buffer_region(buffer, token.start, token.start + token.len, false);
 
     identifier : string = ---;
     identifier.data = bytes.data + token.start;
@@ -306,6 +325,8 @@ parse_here_string :: (using buffer: *Buffer, token: Token) -> handled: bool{
         highlight_proc = highlight_csharp_syntax;
     else if matches("cpp") || matches("c++") || matches("c") || matches("h") || matches("h++") || matches("hpp")
         highlight_proc = highlight_c_syntax;
+    else if matches("vert") || matches("frag") || matches("geom") || matches("tess") || matches("glsl")
+        highlight_proc = highlight_glsl_syntax;
     else
         return false;
 
@@ -366,6 +387,8 @@ parse_compiler_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     if ok {
         token.type = .compiler_directive;
         token.compiler_directive = directive;
+        if directive == .directive_asm
+            make_next_scope_region = true;
     }
 }
 
@@ -650,6 +673,8 @@ Tokenizer :: struct {
     max_t:   *u8;
     start_t: *u8;  // cursor when starting parsing new token
     t:       *u8;  // cursor
+
+    make_next_scope_region: bool;
 
     prev : Token;
     before_prev : Token;

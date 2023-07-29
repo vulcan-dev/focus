@@ -74,13 +74,14 @@ refresh_entries :: () {
     scroll_y = 0;
     selected = 0;
 
-    filter_chars := decode_utf8_string_to_temp_char_substrings(to_string(input.text));
+    input_string := to_string(input.text);
+    filter_chars := decode_utf8_string_to_temp_char_substrings(input_string);
 
     for command : commands {
         if command.requires_layout == .Single && editors.layout == .None   continue;
         if command.requires_layout == .Double && editors.layout != .Double continue;
 
-        score, highlights := fuzzy_match(command.name, filter_chars);
+        score, highlights := fuzzy_match(command.name, filter_chars, input_string);
         if score < 0 continue;
 
         entry := array_add(*filtered);

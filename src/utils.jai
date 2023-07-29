@@ -186,17 +186,17 @@ find_index_from_left_whole_word :: (s: string, substring: string, start_index :=
     return -1;
 }
 
-fuzzy_match :: (str: string, chars: [] string) -> score: s32, highlights: [] bool {
+fuzzy_match :: (str: string, needle_chars: [] string, needle: string) -> score: s32, highlights: [] bool {
     highlights := NewArray(str.count, bool, initialized = true);  // allocates from the pool
                                                                   // we "leak" if there's no match but that should be ok
-    if !chars return 0, highlights;
+    if !needle_chars return 0, highlights;
 
     MAX_CHARS :: 200;
 
     score: s32;
     pos := 0;
 
-    for char : chars {
+    for char : needle_chars {
         index := find_index_from_left_nocase(str, char, pos);
         if index < 0 { score = -1; break; }
         highlights[index] = true;
@@ -204,7 +204,16 @@ fuzzy_match :: (str: string, chars: [] string) -> score: s32, highlights: [] boo
         pos = index + char.count;
     }
 
-    if score < 0 then memset(highlights.data, 0, highlights.count);  // no match -> no highlighting
+    if score < 0 {
+        memset(highlights.data, 0, highlights.count);  // no match -> no highlighting
+    }
+    else if starts_with(str, needle) {
+        score += 1_000_000;
+        if str.count == needle.count
+            score += 5_000_000;
+        else if !is_alpha(str[needle.count])
+            score += 1_000_000;
+    }
 
     return score, highlights;
 }

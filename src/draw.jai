@@ -878,12 +878,16 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         // Draw regions
         for region: buffer.regions {
+            if region.start_offset < 0 || region.start_offset >= buffer.bytes.count
+            || region.end_offset < 0 || region.end_offset >= buffer.bytes.count
+                continue;
+
             start := offset_to_line(editor, buffer, region.start_offset);
             if region.inclusive  start -= 1;
             if start > visible_lines_end  continue;
 
             end := offset_to_line(editor, buffer, region.end_offset);
-            if !region.inclusive  end += 1;
+            if !region.inclusive  end -= 1;
             if end < visible_lines_start  continue;
 
             start = max(start, visible_lines_start);

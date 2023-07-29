@@ -16,7 +16,7 @@ highlight_md_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
 }
 
 highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
-    indent := 0;
+    indent : s32 = 0;
     blockquote_level := 0;
     token : Token;
     token.type = .eol;
@@ -25,13 +25,14 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
     prev_line_blockquote_level := 0;
     blockquotes : [..] s32;
 
-    while true {
+    while false {
         if token.type == .eol {
-            if line_blockquote_level != prev_line_blockquote_level {
-                if line_blockquote_level == 0 {
-                    array_add(*regions, .{blockquote_start
+//            if line_blockquote_level != prev_line_blockquote_level {
+//                if line_blockquote_level == 0 {
+//                    array_add(*regions, .{blockquote_start
             indent = eat_white_space(tokenizer);
-            token = get_next_token(tokenizer);
+            prev_token = token;
+            token = get_next_token(tokenizer, is_start_of_line, indent);
             if token.type == .eol  continue;
             is_start_of_line = true;
         }
@@ -46,16 +47,17 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
         }
         else {
             if prev_token.type == .blockquote {
-                if line_blockquote_level != prev_line_blockquote_level {
+                //if line_blockquote_level != prev_line_blockquote_level {
 
             }
-            if blockquote
+            //if .blockquote
             is_start_of_line = false;
         }
 
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
 
+        prev_token = token;
         token = get_next_token(tokenizer, is_start_of_line, indent);
     }
 }
@@ -71,20 +73,22 @@ get_next_token :: (using tokenizer: *Tokenizer, is_start_of_line: bool, indent: 
     // @TODO \
 
     if is_start_of_line {
-        case #char "\n";
-        token.type = .eol;
-        t += 1;
+        if t.* == {
+            case #char "\n";
+            token.type = .eol;
+            t += 1;
 
-        case #char "#";
-        parse_header(tokenizer, *token);
+            case #char "#";
+            parse_header(tokenizer, *token);
 
-        case #char ">"
-        token.type = .blockquote;
-        t += 1;
+            case #char ">";
+            token.type = .blockquote;
+            t += 1;
 
-        case;
-        token.type = .default;
-        eat_until_newline(tokenizer);
+            case;
+            token.type = .default;
+            eat_until_newline(tokenizer);
+        }
     }
     else {
         eat_white_space(tokenizer);
@@ -158,6 +162,8 @@ Tokenizer :: struct {
     max_t:   *u8;
     start_t: *u8;  // cursor when starting parsing new token
     t:       *u8;  // cursor
+
+    prev_token : Token;
 }
 
 Token :: struct {
@@ -168,6 +174,7 @@ Token :: struct {
     Type :: enum u16 {
         eof;
         eol;
+        blockquote;
 
         error;
         default;
@@ -192,6 +199,7 @@ Token :: struct {
 COLOR_MAP :: Code_Color.[
     .COMMENT,       // eof - obviously not used
     .COMMENT,       // eol - obviously not used
+    .COMMENT,       // blockquote - not colored directly; turned into a region
 
     .ERROR,         // error
     .DEFAULT,       // default

@@ -4,8 +4,21 @@ highlight_glsl_syntax :: (using buffer: *Buffer) {
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
+    highlight_glsl_syntax(buffer, *tokenizer);
+}
+
+highlight_glsl_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
+    tokenizer: Tokenizer = ---;
+    tokenizer.buf   = to_string(bytes);
+    tokenizer.max_t = bytes.data + start_index + count;
+    tokenizer.t     = bytes.data + start_index;
+
+    highlight_glsl_syntax(buffer, *tokenizer);
+}
+
+highlight_glsl_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
     while true {
-        token := get_next_token(*tokenizer);
+        token := get_next_token(tokenizer);
         if token.type == .eof break;
 
         using tokenizer;
