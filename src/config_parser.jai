@@ -343,7 +343,6 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
                 config.working_directory = new_strings.replace(value, "/", "\\", allocator=console_allocator);
 
                 case "command";
-                print("command: [%]\n", value);
                 array_add(*config.commands, copy_string(value, console_allocator));
 
                 case;

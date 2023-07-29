@@ -89,7 +89,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     successful := true;
 
     for command: task.build_config.commands {
-        print("********************%********************", command);
+        //print("********************%********************", command);
         result, output, error, timed_out := run_command(
             .. break_command_into_strings(command),
             working_directory = task.build_config.working_directory,
