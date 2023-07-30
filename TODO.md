@@ -40,6 +40,7 @@
 - [ ] next/prev search result
 - [ ] case conversion
 
+- [x] Add TODO.MD to repo
 - [x] Parse herestring langs
 - [x] Set line wrap from file type
 - [.] eye

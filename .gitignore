@@ -4,7 +4,6 @@
 *.dSYM/
 *.dmg
 .DS_Store
-TODO.md
 
 projects/
 temp/
