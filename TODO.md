@@ -9,9 +9,10 @@
 - [.] MD
     - [x] Basically working
     - [ ] <hr>
-    - [ ] hyperlinks
+    - [x] hyperlinks
     - [ ] emphasis
     - [ ] escapes
+    - [ ] urls/emails
 
 - [?] FIX command runner!!!
 

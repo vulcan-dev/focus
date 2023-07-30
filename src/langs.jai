@@ -2,7 +2,7 @@ maybe_highlight_inner_language :: (using buffer: *Buffer, identifier: string, st
     highlight_proc : #type (*Buffer, s32, s32);
 
     matches :: (postfix: string) -> bool #expand {
-        return strings.ends_with(identifier, postfix);
+        return strings.ends_with(identifier, postfix, strings.ignore_case);
     }
 
     // @TODO generate this code at compile time

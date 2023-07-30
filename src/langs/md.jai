@@ -51,10 +51,18 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
             }
         }
 
-        color := COLOR_MAP[token.type];
-        memset(colors.data + token.start, xx color, token.len);
+        if token.type == .hyperlink {
+            color := COLOR_MAP[token.type];
+            memset(colors.data + token.start, xx color, token.sublen);
+            color = COLOR_MAP[Token.Type.hyperlink_url];
+            memset(colors.data + token.start + token.sublen, xx color, token.len - token.sublen);
+        }
+        else {
+            color := COLOR_MAP[token.type];
+            memset(colors.data + token.start, xx color, token.len);
+        }
 
-        if token.type == .codeblock { // @TODO @Speed don't write above if we're going to write below
+        if token.type == .codeblock {
             identifier := strings.substring(buf, token.start + 3, token.sublen);
             maybe_highlight_inner_language(buffer, identifier, token.start + 3 + token.sublen, token.len - 6 - token.sublen, false);
             add_buffer_region(buffer, token.start, token.start + token.len, false);
@@ -112,6 +120,9 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
             case #char "+";
             parse_unordered_list(tokenizer, *token);
 
+            case #char "[";
+            parse_hyperlink(tokenizer, *token);
+
             case;
             parse_default(tokenizer, *token);
         }
@@ -126,6 +137,9 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
             case #char "`";
             parse_code(tokenizer, *token);
 
+            case #char "[";
+            parse_hyperlink(tokenizer, *token);
+
             case;
             parse_default(tokenizer, *token);
         }
@@ -139,11 +153,48 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
 
 parse_default :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
-    while t < max_t && t.* != #char "\n" && !is_whitespace(t.*) && t.* != #char "`"
+    while t < max_t && t.* != #char "\n" && !is_whitespace(t.*) && t.* != #char "`" && t.* != #char "["
         t += 1;
 
     token.type = .default;
     return;
+}
+
+parse_hyperlink :: (using tokenizer: *Tokenizer, token: *Token) {
+    t += 1;
+    while t < max_t && t.* != #char "]" {
+        if t.* == #char "\n" {
+            token.type = .default;
+            return;
+        }
+        t += 1;
+    }
+
+    t += 1;
+    if t.* != #char "(" {
+        token.type = .default;
+        return;
+    }
+
+    end_of_text := t;
+
+    t += 1;
+    while t < max_t && t.* != #char ")" {
+        if t.* == #char "\n" {
+            token.type = .default;
+            return;
+        }
+        t += 1;
+    }
+
+    if t.* != #char ")" {
+        token.type = .default;
+        return;
+    }
+
+    token.type = .hyperlink;
+    token.sublen = xx (end_of_text - start_t);
+    t += 1;
 }
 
 parse_code :: (using tokenizer: *Tokenizer, token: *Token) {
@@ -151,7 +202,6 @@ parse_code :: (using tokenizer: *Tokenizer, token: *Token) {
     while t < max_t && t.* != #char "`" {
         if t.* == #char "\n" {
             token.type = .error;
-            t += 1;
             return;
         }
         t += 1;
@@ -219,7 +269,8 @@ parse_codeblock :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 
     if backticks < 3 {
-        parse_default(tokenizer, token);
+        t = start_t;
+        parse_code(tokenizer, token);
         return;
     }
 
@@ -336,6 +387,9 @@ Token :: struct {
 
         code;
         codeblock;
+
+        hyperlink;
+        hyperlink_url;
     }
 
 }
@@ -361,6 +415,9 @@ COLOR_MAP :: Code_Color.[
 
     .STRING,        // code
     .STRING,        // codeblock
+
+    .STRING,        // hyperlink
+    .VALUE_KEYWORD, // hyperlink url
 ];
 
 #run assert(enum_highest_value(Token.Type) == COLOR_MAP.count - 1);
