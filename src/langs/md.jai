@@ -34,10 +34,11 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
         is_start_of_line = prev_token.type == .eol || prev_token.type == .blockquote;
 
         token = get_next_token(tokenizer);
+        //print("%\n", token);
 
         if token.type == .eof  break;
 
-        if token.type == .blockquote || blockquote_index > 0 {
+        if token.type == .blockquote || (blockquote_index > 0 && prev_token.type == .eol) {
             new_level := ifx token.type == .blockquote then token.sublen else 0;
             while blockquote_index < new_level && blockquote_index < blockquotes.count - 1 {
                 blockquotes[blockquote_index] = token.start;
@@ -53,11 +54,17 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
 
-        if token.type == .code { // @TODO @Speed don't write above if we're going to write below
+        if token.type == .codeblock { // @TODO @Speed don't write above if we're going to write below
             identifier := strings.substring(buf, token.start + 3, token.sublen);
-            maybe_highlight_inner_language(buffer, identifier, token.start + 3 + token.sublen, token.len - 6 - token.sublen, true);
+            maybe_highlight_inner_language(buffer, identifier, token.start + 3 + token.sublen, token.len - 6 - token.sublen, false);
             add_buffer_region(buffer, token.start, token.start + token.len, false);
         }
+    }
+
+    while blockquote_index > 0 {
+        blockquote_index -= 1;
+        end := ifx token.type == .blockquote then token.start else prev_token.start;
+        add_buffer_region(buffer, blockquotes[blockquote_index], end, true);
     }
 }
 
@@ -88,20 +95,39 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
             case #char "`";
             parse_codeblock(tokenizer, *token);
 
+            case #char "0"; #through;
+            case #char "1"; #through;
+            case #char "2"; #through;
+            case #char "3"; #through;
+            case #char "4"; #through;
+            case #char "5"; #through;
+            case #char "6"; #through;
+            case #char "7"; #through;
+            case #char "8"; #through;
+            case #char "9";
+            parse_ordered_list(tokenizer, *token);
+
+            case #char "-"; #through;
+            case #char "*"; #through;
+            case #char "+";
+            parse_unordered_list(tokenizer, *token);
+
             case;
-            token.type = .default;
-            eat_until_newline(tokenizer);
+            parse_default(tokenizer, *token);
         }
     }
     else {
         eat_white_space(tokenizer);
 
         start_t = t;
+        token.start = cast(s32) (t - buf.data);
 
         if t.* == {
+            case #char "`";
+            parse_code(tokenizer, *token);
+
             case;
-            token.type = .default;
-            eat_until_newline(tokenizer);
+            parse_default(tokenizer, *token);
         }
     }
 
@@ -109,6 +135,31 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     token.len = cast(s32) (t - start_t);
 
     return token;
+}
+
+parse_default :: (using tokenizer: *Tokenizer, token: *Token) {
+    t += 1;
+    while t < max_t && t.* != #char "\n" && !is_whitespace(t.*) && t.* != #char "`"
+        t += 1;
+
+    token.type = .default;
+    return;
+}
+
+parse_code :: (using tokenizer: *Tokenizer, token: *Token) {
+    t += 1;
+    while t < max_t && t.* != #char "`" {
+        if t.* == #char "\n" {
+            token.type = .error;
+            t += 1;
+            return;
+        }
+        t += 1;
+    }
+
+    token.type = .code;
+    t += 1;
+    return;
 }
 
 parse_header :: (using tokenizer: *Tokenizer, token: *Token) {
@@ -168,8 +219,7 @@ parse_codeblock :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 
     if backticks < 3 {
-        token.type = .default;
-        eat_until_newline(tokenizer);
+        parse_default(tokenizer, token);
         return;
     }
 
@@ -188,7 +238,46 @@ parse_codeblock :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 
     t = buf.data + end + terminator.count;
-    token.type = .code;
+    token.type = .codeblock;
+}
+
+parse_ordered_list :: (using tokenizer: *Tokenizer, token: *Token) {
+    t += 1;
+    while t < max_t && t.* >= #char "0" && t.* <= #char "9"
+        t += 1;
+
+    if t == max_t || t.* != #char "." {
+        parse_default(tokenizer, token);
+        return;
+    }
+
+    t += 1;
+    if t == max_t {
+        parse_default(tokenizer, token);
+        return;
+    }
+
+    if is_whitespace(t.*) && indent % 4 == 0
+        token.type = .ordered_list;
+    else
+        token.type = .error;
+
+    eat_until_newline(tokenizer);
+    return;
+}
+
+parse_unordered_list :: (using tokenizer: *Tokenizer, token: *Token) {
+    t += 1;
+    if t == max_t || !is_whitespace(t.*) {
+        parse_default(tokenizer, token);
+        return;
+    }
+
+    if indent % 4 == 0  token.type = .unordered_list;
+    else                token.type = .error;
+
+    eat_until_newline(tokenizer);
+    return;
 }
 
 eat_until_newline :: (using tokenizer: *Tokenizer) {
@@ -246,7 +335,7 @@ Token :: struct {
         unordered_list;
 
         code;
-
+        codeblock;
     }
 
 }
@@ -271,6 +360,7 @@ COLOR_MAP :: Code_Color.[
     .FUNCTION,      // unorderer_list
 
     .STRING,        // code
+    .STRING,        // codeblock
 ];
 
 #run assert(enum_highest_value(Token.Type) == COLOR_MAP.count - 1);

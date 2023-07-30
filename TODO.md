@@ -6,13 +6,17 @@
     - [ ] command
     - [ ] #asm region
 
+- [.] MD
+    - [x] Basically working
+    - [ ] <hr>
+    - [ ] hyperlinks
+    - [ ] emphasis
+    - [ ] escapes
+
 - [?] FIX command runner!!!
 
 - [ ] Zen
-- [ ] MD
-- [x] Parse herestring langs
-- [ ] Change background per line
-- [ ] Developer tool show scope at cursor
+- [.] Developer tool show scope at cursor
 - [ ] Create project from folder
 - [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [ ] search broken? possibly same problem as memory crash?
@@ -36,6 +40,8 @@
 - [ ] next/prev search result
 - [ ] case conversion
 
+- [x] Parse herestring langs
+- [x] Set line wrap from file type
 - [.] eye
     - [x] check for line length
     - [x] jump to looked-at editor, not active editor

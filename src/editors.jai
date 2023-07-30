@@ -1503,10 +1503,20 @@ find_or_create_editor :: (buffer_id: s64, unwanted_existing_editor: s64 = -1) ->
         redraw_requested = true;
     }
 
-    open_buffers[buffer_id].num_editors_open += 1;
-    assert(open_buffers[buffer_id].num_editors_open <= 2);
+    buffer := *open_buffers[buffer_id];
+    buffer.num_editors_open += 1;
+    assert(buffer.num_editors_open <= 2);
+
+    set_options_from_lang(editor, buffer);
 
     return editor_id, true;
+}
+
+set_options_from_lang :: (editor: *Editor, buffer: *Buffer) {
+    if is_lang_which_likes_to_line_wrap(buffer.lang) {
+        redraw_requested |= !editor.line_wrap;
+        editor.line_wrap = .to_enable;
+    }
 }
 
 undo :: (editor: *Editor, buffer: *Buffer) {
@@ -1803,10 +1813,6 @@ is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64,
     return false;
 }
 
-is_lang_which_likes_to_indent :: (buffer: *Buffer) -> bool {
-    return buffer.lang == .Jai || buffer.lang == .C || buffer.lang == .CSharp;
-}
-
 break_line :: (editor: *Editor, buffer: *Buffer) {
     // Remember by how much we need to indent the new lines upfront to avoid any scanning of the dirty buffer later
     Space :: struct { start: s32; count: s32; original_start: s32; }  // not a string to avoid invalid pointers
@@ -1817,7 +1823,7 @@ break_line :: (editor: *Editor, buffer: *Buffer) {
         start := get_real_line_start_offset(buffer, offset_to_real_line(buffer, selection.start));
         whitespace_bytes := count_whitespace(buffer.bytes, start, selection.start);
         wants_indent := false;
-        if is_lang_which_likes_to_indent(buffer) && cursor.pos > 0 && cursor.pos > start {
+        if is_lang_which_likes_to_indent(buffer.lang) && cursor.pos > 0 && cursor.pos > start {
             prev_char := buffer.bytes[cursor.pos - 1];
             wants_indent = prev_char == #char "{";
             if !wants_indent && prev_char != #char ";"

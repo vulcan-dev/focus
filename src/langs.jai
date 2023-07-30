@@ -25,6 +25,20 @@ maybe_highlight_inner_language :: (using buffer: *Buffer, identifier: string, st
     return true;
 }
 
+is_lang_which_likes_to_line_wrap :: (lang: type_of(Buffer.lang)) -> bool {
+    return lang == .Plain_Text
+        || lang == .Focus_Config
+        || lang == .Markdown
+        || lang == .Worklog;
+}
+
+is_lang_which_likes_to_indent :: (lang: type_of(Buffer.lang)) -> bool {
+    return lang == .Jai
+        || lang == .C
+        || lang == .CSharp
+        || lang == .Glsl;
+}
+
 
 #scope_file
 
