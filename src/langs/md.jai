@@ -47,7 +47,7 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
             while blockquote_index > new_level && blockquote_index > 0 {
                 blockquote_index -= 1;
                 end := ifx token.type == .blockquote then token.start else prev_token.start;
-                add_buffer_region(buffer, blockquotes[blockquote_index], end, true);
+                add_buffer_region(buffer, blockquotes[blockquote_index], end, true, 1);
             }
         }
 
@@ -65,14 +65,14 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
         if token.type == .codeblock {
             identifier := strings.substring(buf, token.start + 3, token.sublen);
             maybe_highlight_inner_language(buffer, identifier, token.start + 3 + token.sublen, token.len - 6 - token.sublen, false);
-            add_buffer_region(buffer, token.start, token.start + token.len, false);
+            add_buffer_region(buffer, token.start, token.start + token.len, false, 1);
         }
     }
 
     while blockquote_index > 0 {
         blockquote_index -= 1;
         end := ifx token.type == .blockquote then token.start else prev_token.start;
-        add_buffer_region(buffer, blockquotes[blockquote_index], end, true);
+        add_buffer_region(buffer, blockquotes[blockquote_index], end, true, 1);
     }
 }
 

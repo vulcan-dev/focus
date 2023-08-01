@@ -873,8 +873,8 @@ reset_buffer_regions :: (using buffer: *Buffer) {
     array_reset(*regions);
 }
 
-add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool) {
-    array_add(*regions, .{ start_offset, end_offset, inclusive });
+add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8) {
+    array_add(*regions, .{ start_offset, end_offset, inclusive, depth });
 }
 
 #scope_file
@@ -981,6 +981,7 @@ Buffer :: struct {
         start_offset : s32;
         end_offset : s32;
         inclusive := false;
+        depth : s8;
     };
 
     // TODO: put into enum_flags

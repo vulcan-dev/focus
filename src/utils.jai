@@ -445,3 +445,38 @@ Char_Type :: enum {
     space;
     other;
 }
+
+
+// A simple stack that can be pushed/popped infinitely, but only records values for 0 <= index < count
+Stack :: struct(count: int, default_item: $type) {
+    items : [count] type;
+    index := -1;
+}
+
+has_item :: inline (stack: Stack) -> bool {
+    return stack.index >= 0 && stack.index < stack.count;
+}
+
+pop :: (stack: *$T/Stack) -> item: T.type, ok: bool {
+    defer stack.index -= 1;
+    if has_item(stack)  return stack.items[stack.index], true;
+    else                return T.default_item, false;
+}
+
+peek :: (stack: $T/Stack) -> item: T.type, ok: bool {
+    if has_item(stack)  return stack.items[stack.index], true;
+    else                return T.default_item, false;
+}
+
+push :: (stack: *$T/Stack, item : T.type) {
+    stack.index += 1;
+    if has_item(stack)  stack.items[stack.index] = item;
+}
+
+push :: inline (stack: *$T/Stack) {
+    push(stack, T.default_item);
+}
+
+set :: (stack: *$T/Stack, item: T.type) {
+    if has_item(stack)  stack.items[stack.index] = item;
+}

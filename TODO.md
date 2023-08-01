@@ -1,8 +1,17 @@
 # Mine
 
 - [ ] FIX MULTIPLE BUFFERS ON SAME FILE!!!
+     - [ ] lowercase paths when used as hash key
+
+- [.] Regions
+    - [x] Selective coloring
+    - [ ] Different color per region type (asm, string, comp_time)
+    - [ ] Draw selection over region
+
+- [ ] Decorations
 
 - [.] autoindent
+    - [ ] get colors/indent union working by adding eol token to jai
     - [ ] command
     - [ ] #asm region
 
@@ -15,6 +24,7 @@
     - [ ] urls/emails
 
 - [?] FIX command runner!!!
+- [ ] Fix jumping around when search target is near top of file
 
 - [ ] Zen
 - [.] Developer tool show scope at cursor

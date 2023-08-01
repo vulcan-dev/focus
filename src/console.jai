@@ -84,7 +84,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     //clear_console(task.title);
     print_to_console("\n\n");
     print_to_console(task.title);
-    print_to_console(" --------------------------------------------------------------------------------\n\n");
+    print_to_console(" ----------------------------------------\n\n");
 
     successful := true;
 

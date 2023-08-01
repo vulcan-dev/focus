@@ -897,7 +897,23 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 rect.x, text_origin.y - start * line_height,
                 rect.w, line_height * (start - end)
             );
-            draw_rect(region_rect, Colors.BACKGROUND_REGION);
+
+            if region.depth == 0 { // "inserting" code
+                draw_rect(region_rect, Colors.BACKGROUND);
+                region_rect.w = 10;
+                draw_rect(region_rect, Colors.BACKGROUND_REGION);
+                region_rect.x = 10;
+                region_rect.w = char_x_advance;
+                fade_char_count :: 8;
+                for 1 .. fade_char_count {
+                    color := lerp(Colors.BACKGROUND_REGION, Colors.BACKGROUND, 1.0 / fade_char_count * it);
+                    draw_rect(region_rect, xx color);
+                    region_rect.x += char_x_advance;
+                }
+            }
+            else {
+                draw_rect(region_rect, Colors.BACKGROUND_REGION);
+            }
         }
 
         // Draw text
