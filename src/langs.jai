@@ -1,25 +1,42 @@
-maybe_highlight_inner_language :: (using buffer: *Buffer, identifier: string, start_index: s32, count: s32, use_jai_by_default := false) -> bool {
-    highlight_proc : #type (*Buffer, s32, s32);
+language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
 
     matches :: (postfix: string) -> bool #expand {
         return strings.ends_with(identifier, postfix, strings.ignore_case);
     }
 
-    // @TODO generate this code at compile time
     if matches("jai")
-        highlight_proc = highlight_jai_syntax;
+        return .Jai;
     else if matches("cs") || matches("csharp") || matches("c#")
-        highlight_proc = highlight_csharp_syntax;
+        return .CSharp;
     else if matches("cpp") || matches("c++") || matches("c") || matches("h") || matches("h++") || matches("hpp")
-        highlight_proc = highlight_c_syntax;
+        return .C;
     else if matches("vert") || matches("frag") || matches("geom") || matches("tess") || matches("glsl")
-        highlight_proc = highlight_glsl_syntax;
+        return .Glsl;
     else if matches("md") || matches("markdown")
-        highlight_proc = highlight_md_syntax;
-    else if use_jai_by_default
-        highlight_proc = highlight_jai_syntax;
-    else
-        return false;
+        return .Markdown;
+
+    return .Plain_Text;
+}
+
+maybe_highlight_inner_language :: (using buffer: *Buffer, language: type_of(Buffer.lang), start_index: s32, count: s32, use_jai_by_default := false) -> bool {
+    highlight_proc : #type (*Buffer, s32, s32);
+
+    // @TODO generate this code at compile time
+    if #complete language == {
+        case .Jai;           highlight_proc = highlight_jai_syntax;
+        case .CSharp;        highlight_proc = highlight_csharp_syntax;
+        case .C;             highlight_proc = highlight_c_syntax;
+        case .Glsl;          highlight_proc = highlight_glsl_syntax;
+        case .Markdown;      highlight_proc = highlight_md_syntax;
+        case .Worklog;       highlight_proc = highlight_worklog;
+        case .Focus_Config;  highlight_proc = highlight_focus_config_syntax;
+
+        case .Plain_Text;
+        if use_jai_by_default
+            highlight_proc = highlight_jai_syntax;
+        else
+            return false;
+    }
 
     highlight_proc(buffer, start_index, count);
     return true;

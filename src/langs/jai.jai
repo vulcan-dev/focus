@@ -5,6 +5,8 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
     tokenizer.make_next_scope_region = .disregard;
+    init(*tokenizer.scope_stack);
+    init(*tokenizer.region_stack);
 
     highlight_jai_syntax(buffer, *tokenizer, true);
 }
@@ -16,6 +18,8 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
     tokenizer.make_next_scope_region = .disregard;
+    init(*tokenizer.scope_stack);
+    init(*tokenizer.region_stack);
 
     highlight_jai_syntax(buffer, *tokenizer, false);
 }
@@ -77,8 +81,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                         if scope_start >= 0 {
                             region_type := pop(*region_stack);
                             if region_type {
-                                parent_region_is_compile_time_outer := peek(region_stack) == .compile_time;
-                                depth := cast(s8) ifx region_type != .compile_time && parent_region_is_compile_time_outer then 0 else 1;
+                                depth :: cast(s8) 1;
                                 add_buffer_region(buffer, scope_start, token.start + 1, true, depth);
                             }
                         }
@@ -119,31 +122,38 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
         prev_token = token;
 
         color := COLOR_MAP[token.type];
-        handled := false;
 
         if token.type == .here_string {
-            handled = parse_here_string(buffer, token);
-            if handled {
-                memset(colors.data + token.start, xx color, token.sublen);
-                memset(colors.data + token.start + token.len - token.sublen, xx color, token.sublen);
-            }
-        }
+            if !parse_here_string(buffer, tokenizer, token)
+                memset(colors.data + token.start, xx color, token.len);
 
-        if !handled {
+            identifier_color := COLOR_MAP[Token.Type.compiler_directive]; // @TODO add color specifically for herestring identifiers
+            memset(colors.data + token.start, xx identifier_color, token.sublen);
+            memset(colors.data + token.start + token.len - token.sublen, xx identifier_color, token.sublen);
+        }
+        else {
             memset(colors.data + token.start, xx color, token.len);
         }
     }
 
-    if reset_regions
+    while !is_empty(scope_stack) {
+        scope_start := pop(*scope_stack);
+        if scope_start >= 0 {
+            region_type := pop(*region_stack);
+            if region_type {
+                depth :: cast(s8) 1;
+                add_buffer_region(buffer, scope_start, xx (max_t - bytes.data), true, depth);
+            }
+        }
+    }
+
+    if reset_regions {
         quick_sort(regions, x => x.start_offset);
+    }
 
     // @Autoindent
     //array_add(*line_starts, cast(s32) bytes.count);  // last line
 }
-
-
-scope_stack : Stack(64, cast(s32) -1); // start pos, or -1 for disregard
-region_stack : Stack(64, type_of(Tokenizer.make_next_scope_region).disregard);
 
 
 jai_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64) -> bool {
@@ -326,18 +336,19 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_here_string :: (using buffer: *Buffer, token: Token) -> handled: bool{
+parse_here_string :: (using buffer: *Buffer, using tokenizer: *Tokenizer, token: Token) -> handled: bool{
     assert(token.type == .here_string);
     if token.len < token.sublen * 2  return false;
-
-    depth := cast(s8) ifx peek(region_stack) == .compile_time then 0 else 1;
-
-    add_buffer_region(buffer, token.start, token.start + token.len, false, depth);
 
     identifier : string = ---;
     identifier.data = buffer.bytes.data + token.start;
     identifier.count = token.sublen;
-    return maybe_highlight_inner_language(buffer, identifier, token.start + token.sublen, token.len - token.sublen * 2);
+    language := language_from_extension(identifier);
+
+    depth := cast(s8) ifx language == .Jai && peek(region_stack) == .compile_time then 0 else 1;
+    add_buffer_region(buffer, token.start, token.start + token.len, false, depth);
+
+    return maybe_highlight_inner_language(buffer, language, token.start + token.sublen, token.len - token.sublen * 2);
 }
 
 parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
@@ -681,6 +692,9 @@ Tokenizer :: struct {
     t:       *u8;  // cursor
 
     make_next_scope_region: enum { disregard; regular; asm; compile_time; };
+
+    scope_stack : Stack(64, cast(s32) -1); // start pos, or -1 for disregard
+    region_stack : Stack(64, type_of(make_next_scope_region).disregard);
 
     prev_token : Token;
     before_prev_token : Token;

@@ -453,6 +453,14 @@ Stack :: struct(count: int, default_item: $type) {
     index := -1;
 }
 
+init :: (stack: *Stack) {
+    stack.index = -1;
+}
+
+is_empty :: inline (stack: Stack) -> bool {
+    return stack.index < 0;
+}
+
 has_item :: inline (stack: Stack) -> bool {
     return stack.index >= 0 && stack.index < stack.count;
 }

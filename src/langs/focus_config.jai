@@ -4,6 +4,24 @@ highlight_focus_config_syntax :: (using buffer: *Buffer) {
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
+    highlight_focus_config_syntax(buffer, *tokenizer, true);
+}
+
+highlight_focus_config_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
+    tokenizer: Tokenizer = ---;
+    tokenizer.buf   = to_string(bytes);
+    tokenizer.max_t = bytes.data + bytes.count;
+    tokenizer.t     = bytes.data;
+
+    highlight_focus_config_syntax(buffer, *tokenizer, false);
+}
+
+highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset_regions: bool) {
+    tokenizer: Tokenizer = ---;
+    tokenizer.buf   = to_string(bytes);
+    tokenizer.max_t = bytes.data + bytes.count;
+    tokenizer.t     = bytes.data;
+
     while true {
         token := get_next_token(*tokenizer);
         if token.type == .eof break;
