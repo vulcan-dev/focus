@@ -89,7 +89,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     successful := true;
 
     for command: task.build_config.commands {
-        //print("********************%********************", command);
+        print("\n********************\n%\n%\n********************\n", command, task.build_config.working_directory);
         result, output, error, timed_out := run_command(
             .. break_command_into_strings(command),
             working_directory = task.build_config.working_directory,
@@ -97,10 +97,15 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
         defer { free(output); free(error); }
 
         if result.exit_code {
+            print("Result: %\n", result);
+            print("Output: %\n", output);
+            print("Error: %\n", error);
+            print("Timed Out: %\n", timed_out);
             successful = false;
             break;
         }
     }
+
 
     if successful {
         duration : float64 : 5;

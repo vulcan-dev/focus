@@ -524,6 +524,7 @@ editors_open_buffer :: (buffer_id: s64, placement: Editor_Placement = .in_place)
 
 move_viewport :: (editor: *Editor, dir: enum { left; up; right; down; }) {
     using editor.viewport;
+    using font_data;
     if dir == {
         case .left; #through;
         case .right;
@@ -553,6 +554,7 @@ jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
 
 
 move_cursor_to_viewport_center :: (editor: *Editor, buffer: Buffer) {
+    using font_data;
     cursor := leave_only_original_cursor(editor);
     // We assume that editors always take up most of the screen vertically.
     // If that ever changes we'll need to change this code (and do it when we know the layout)
@@ -638,6 +640,7 @@ get_max_real_line_num :: inline (buffer: Buffer) -> s32 {
 
 get_max_y_scroll :: (editor: Editor, buffer: Buffer) -> s32 {
     assert(!buffer.dirty);
+    using font_data;
     return max(cast(s32) (get_max_line_num(editor, buffer)  * line_height), 0);
 }
 
@@ -1146,12 +1149,14 @@ remove_all_editors :: () {
 }
 
 viewport_remember_glue_point :: (using editor: *Editor, buffer: Buffer) {
+    using font_data;
     viewport.glue_point.buffer_pos = get_line_start_offset(editor, buffer, viewport.top / cast(s32) line_height);
     viewport.glue_point.offset_within_line = viewport.top % cast(s32) line_height;
 }
 
 viewport_glue_to_point :: (editor: *Editor, buffer: Buffer) -> changed: bool {
     using editor.viewport;
+    using font_data;
 
     old_top := top;
     line := offset_to_line(editor, buffer, glue_point.buffer_pos);
@@ -1727,6 +1732,8 @@ move_cursors_to_empty_line :: (editor: *Editor, buffer: Buffer, dir: enum { up; 
 }
 
 move_cursors_by_page :: (editor: *Editor, buffer: Buffer, dir: enum { up; down; }) {
+    using font_data;
+
     page_size := cast(s32) (window_height / line_height);
 
     for * cursor : editor.cursors {

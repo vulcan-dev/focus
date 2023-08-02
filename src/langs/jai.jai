@@ -35,6 +35,10 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
     current_indent_level : s8 = 0;
     is_new_line := false;
 
+    initial_string : string = ---;
+    initial_string.data = t;
+    initial_string.count = max_t - t;
+
     while true {
         token := get_next_token(tokenizer);
         if token.type == .eof break;
@@ -149,6 +153,47 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
 
     if reset_regions {
         quick_sort(regions, x => x.start_offset);
+    }
+    else {
+        // We're in an inner jai code block, i.e. a string, i.e. a format string
+        // So... highlight any % markers
+        percent_color := COLOR_MAP[Token.Type.punctuation];
+        zero_color := COLOR_MAP[Token.Type.comment];
+        s := initial_string;
+        start_index := initial_string.data - buffer.bytes.data;
+        index, found := strings.first_index(s, #char "%");
+        while found {
+            defer index, found = strings.first_index(s, #char "%", index);
+
+            if index >= s.count - 1 {
+                buffer.colors[start_index + index] = xx Code_Color.FORMAT_ITEM;
+                break;
+            }
+
+            next := s[index + 1];
+            if next == {
+                case #char "%";
+                memset(buffer.colors.data + start_index + index, xx percent_color, 2);
+                index += 2;
+
+                case #char "0";
+                memset(buffer.colors.data + start_index + index, xx zero_color, 2);
+                index += 2;
+
+                case;
+                if next >= #char "1" && next <= #char "9" {
+                    end_index := index + 2;
+                    while end_index < s.count && s[end_index] >= #char "0" && s[end_index] <= #char "9"
+                        end_index += 1;
+                    memset(buffer.colors.data + start_index + index, xx Code_Color.FORMAT_ITEM, end_index - index);
+                    index = end_index;
+                }
+                else {
+                    memset(buffer.colors.data + start_index + index, xx Code_Color.FORMAT_ITEM, 1);
+                    index += 2;
+                }
+            }
+        }
     }
 
     // @Autoindent

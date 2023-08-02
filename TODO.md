@@ -1,12 +1,22 @@
 # Mine
 
-- [ ] FIX MULTIPLE BUFFERS ON SAME FILE!!!
-     - [ ] lowercase paths when used as hash key
+- [ ] parse string literals to highlight escapes
+
+- [.] build system
+    - [x] parse errors
+    - [x] project config
+    - [x] save all on build
+    - [ ] Fix programs not working as commands (Jai programs?)
+    - [ ] settings
+        - [ ] save all on build
+        - [ ] hide output on success
+        - [ ] error toast timeout
 
 - [.] Regions
     - [x] Selective coloring
     - [ ] Different color per region type (asm, string, comp_time)
-    - [ ] Draw selection over region
+    - [x] Draw selection over region
+    - [x] Highlight format items in jai herestrings
 
 - [ ] Decorations
 
@@ -31,16 +41,10 @@
 - [ ] Create project from folder
 - [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [ ] search broken? possibly same problem as memory crash?
-- [ ] Instance font size per editor
 
-- [.] build system
-    - [x] parse errors
-    - [x] project config
-    - [x] save all on build
-    - [ ] settings
-        - [ ] save all on build
-        - [ ] hide output on success
-        - [ ] error toast timeout
+- [x] FIX MULTIPLE BUFFERS ON SAME FILE!!!
+     - [x] lowercase paths when used as hash key
+- [x] Separate font for console
 - [.] output window
     - [ ] clickable
     - [x] threaded !!!FIX threading!!!

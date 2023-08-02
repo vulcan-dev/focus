@@ -62,6 +62,7 @@ Color_Values :: struct {
     CODE_JUMP               := Color.{ r = 0.902, g = 0.493, b = 0.457, a = 1.0 };
     CODE_DIRECTIVE          := Color.{ r = 0.493, g = 0.902, b = 0.457, a = 1.0 };
     CODE_KEYWORD            := Color.{ r = 0.902, g = 0.493, b = 0.457, a = 1.0 };
+    CODE_FORMAT_ITEM        := Color.{ r = 0.493, g = 0.902, b = 0.902, a = 1.0 };
 };
 
 Colors: Color_Values;  // a hack to avoid replacing a lot of code
@@ -80,6 +81,7 @@ Code_Color :: enum u8 {
     STRING;
     ERROR;
     OPERATION;
+    FORMAT_ITEM;
 
     NUM_COLORS;
 }
@@ -104,6 +106,7 @@ refresh_code_color_map :: () -> [Code_Color.NUM_COLORS] Vector4 {
     result[ERROR]           = Colors.CODE_ERROR;
     result[KEYWORD]         = Colors.CODE_KEYWORD;
     result[OPERATION]       = Colors.CODE_OPERATION;
+    result[FORMAT_ITEM]     = Colors.CODE_FORMAT_ITEM;
 
     return result;
 }

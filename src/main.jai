@@ -107,6 +107,7 @@ main :: () {
 
     dpi_scale = platform_get_dpi_scale(window);
     init_fonts_and_dependent_things();
+    using font_data;
     old_line_height = line_height;
 
     window_has_focus := true;
@@ -410,6 +411,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 }
 
 init_fonts_and_dependent_things :: () {
+    using font_data;
+
     delta := font_size - default_font_size;
     font_size               = clamp(font_size,                               MIN_FONT_SIZE, MAX_FONT_SIZE);
     font_ui_size            = clamp(DEFAULT_FONT_UI_SIZE            + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
@@ -423,6 +426,9 @@ init_fonts_and_dependent_things :: () {
 
     font = Simp.get_font_at_size(main_font_name, main_font_data, cast(int) (font_size * dpi_scale));
     assert(font != null, "Couldn't init main text font\n");
+
+    font_console = Simp.get_font_at_size(console_font_name, console_font_data, cast(int) (font_console_size * dpi_scale));
+    assert(font != null, "Couldn't init console font\n");
 
     font_ui = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_size * dpi_scale));
     assert(font_ui != null, "Couldn't init main ui font\n");
@@ -460,6 +466,7 @@ init_fonts_and_dependent_things :: () {
     // (TODO: maybe there's an easy way for Simp to only update textures on flush?)
     COMMON_CHARS :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789… ~!@#$%^&*()-|\"':;_+={}[]\\/`,.<>?АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчщъыьэюя¶•";
     Simp.prepare_text(font,             COMMON_CHARS);
+    Simp.prepare_text(font_console,     COMMON_CHARS);
     Simp.prepare_text(font_ui,          COMMON_CHARS);
     Simp.prepare_text(font_ui_bold,     COMMON_CHARS);
     Simp.prepare_text(font_ui_small,    COMMON_CHARS);
@@ -479,11 +486,16 @@ init_fonts_and_dependent_things :: () {
     Simp.prepare_text(font_icons,       icons_string);
     Simp.prepare_text(font_icons_tiny, icons_string);
 
-    // Things that depend on char size
+    init_font_data(*primary_font_info, font);
+    init_font_data(*console_font_info, font_console, 2.0);
+}
+
+init_font_data :: (data: *Font_Info, font: *Simp.Dynamic_Font, line_height_scale := 1.0) {
+    using data;
     char_size       = cast(float) font.em_width;
     char_x_advance  = cast(float) font.x_advance;
     old_line_height = line_height;
-    line_height     = floor(cast(float) font.default_line_spacing * cast(float)config.settings.line_height_scale_percent / 100.0);
+    line_height     = floor(cast(float) font.default_line_spacing * cast(float)config.settings.line_height_scale_percent / 100.0) * line_height_scale;
     scrollbar_size  = floor(1.5 * char_size);
     rounding_radius = floor(char_size / 2);
     rounding_radius_large = floor(char_size / 1.5);
@@ -691,6 +703,7 @@ XMARK_ICON          :: #run to_string(*convert_utf32_to_utf8(0xf057));
 TAB_SIZE: s32 = 4;
 
 font:               *Simp.Dynamic_Font;
+font_console:       *Simp.Dynamic_Font;
 font_ui:            *Simp.Dynamic_Font;
 font_ui_bold:       *Simp.Dynamic_Font;
 font_ui_big:        *Simp.Dynamic_Font;
@@ -714,6 +727,9 @@ DEFAULT_FONT_ICONS_TINY_SIZE    :: 8;
 main_font_name := "default";
 main_font_data := #run FONT.data;
 
+console_font_name := "default";
+console_font_data := #run FONT_CONSOLE.data;
+
 default_font_size       := DEFAULT_FONT_SIZE;  // can be changed in the config
 
 font_size               := DEFAULT_FONT_SIZE;  // when changing font size, we change just this one and then derive the other ones from it
@@ -727,17 +743,26 @@ font_icons_small_size   := DEFAULT_FONT_ICONS_SMALL_SIZE;
 font_icons_tiny_size    := DEFAULT_FONT_ICONS_TINY_SIZE;
 
 // Depend on font size
-char_size:                  float;
-char_x_advance:             float;
-line_height:                float;
-old_line_height:            float;  // to track font changes
-font_ui_line_height:        float;
-font_ui_big_line_height:    float;
-font_ui_medium_line_height: float;
-rounding_radius:            float;
-rounding_radius_large:      float;
-rounding_radius_small:      float;
-scrollbar_size:             float;
+Font_Info :: struct {
+    char_size:                  float;
+    char_x_advance:             float;
+    line_height:                float;
+    old_line_height:            float;  // to track font changes
+    font_ui_line_height:        float;
+    font_ui_big_line_height:    float;
+    font_ui_medium_line_height: float;
+    rounding_radius:            float;
+    rounding_radius_large:      float;
+    rounding_radius_small:      float;
+    scrollbar_size:             float;
+};
+
+primary_font_info : Font_Info;
+console_font_info : Font_Info;
+font_data := *primary_font_info;
+
+font_console_size := 8;
+
 
 dont_scroll_this_frame := false;  // because e.g. a mouse wheel event has been handled
 
@@ -877,6 +902,7 @@ DOUBLE_CLICK_TOLERANCE :: 2;    // how many pixels between the click locations a
 
 // Embed default fonts
 FONT         :: #run load_font("FiraCode-Retina.ttf");
+FONT_CONSOLE :: #run load_font("ponderosa.regular.ttf");
 FONT_UI      :: #run load_font("OpenSans-Regular.ttf");
 FONT_UI_BOLD :: #run load_font("OpenSans-SemiBold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
