@@ -1,51 +1,305 @@
 highlight_jai_syntax :: (using buffer: *Buffer) {
     tokenizer: Tokenizer = ---;
+    tokenizer.the_buffer = buffer;
     tokenizer.buf   = to_string(bytes);
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
+    tokenizer.make_next_scope_region = .disregard;
+    init(*tokenizer.scope_stack);
+    init(*tokenizer.region_stack);
 
+    highlight_jai_syntax(buffer, *tokenizer, true);
+}
+
+highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
+    tokenizer: Tokenizer = ---;
+    tokenizer.the_buffer = buffer;
+    tokenizer.buf   = to_string(bytes);
+    tokenizer.max_t = bytes.data + start_index + count;
+    tokenizer.t     = bytes.data + start_index;
+    tokenizer.make_next_scope_region = .disregard;
+    init(*tokenizer.scope_stack);
+    init(*tokenizer.region_stack);
+
+    highlight_jai_syntax(buffer, *tokenizer, false);
+}
+
+highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset_regions: bool) {
     color: Code_Color;
+    if reset_regions  reset_buffer_regions(buffer);
+
+    // @Autoindent
+    //array_reset_keeping_memory(*line_starts);
+    //array_add(*line_starts, 0);  // first line
+    //line_start_index := 0;
+    current_indent_level : s8 = 0;
+    is_new_line := false;
+
+    initial_string : string = ---;
+    initial_string.data = t;
+    initial_string.count = max_t - t;
 
     while true {
-        token := get_next_token(*tokenizer);
+        token := get_next_token(tokenizer);
         if token.type == .eof break;
 
-        // if token.type == .invalid && buffer.has_file {
-        //     log_error("Invalid token in file: %", file.full_path);
-        // }
-
-        using tokenizer;
+        // @Autoindent
+        //while line_starts.count > line_start_index + 1 {
+        //    line_start_index += 1;
+        //    indent_level[line_starts[line_start_index] - 1] = current_indent_level;
+        //    is_new_line = true;
+        //}
 
         // Maybe retroactively highlight a function
-        if token.type == .punctuation && token.punctuation == .l_paren {
-            // Handle "func :: ("
-            before_prev, prev := last_tokens[0], last_tokens[1];
-            if prev.type == .identifier {
-                memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
-            } else if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
-                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+        is_dedent := false;
+        if token.type == .punctuation {
+            if token.punctuation == {
+                case .l_paren;
+                    current_indent_level += 1;
+                    // Handle "func :: ("
+                    if prev_token.type == .identifier {
+                        memset(colors.data + prev_token.start, xx Code_Color.FUNCTION, prev_token.len);
+                    }
+                    else if before_prev_token.type == .identifier && prev_token.type == .operation && prev_token.operation == .double_colon {
+                        memset(colors.data + before_prev_token.start, xx Code_Color.FUNCTION, before_prev_token.len);
+                    }
+
+                case .l_brace; #through;
+                case .l_bracket;
+                    current_indent_level += 1;
+                    if token.punctuation == .l_brace {
+                        push(*scope_stack);
+                        if has_item(scope_stack) && make_next_scope_region {
+                            set(*scope_stack, token.start);
+                            push(*region_stack, make_next_scope_region);
+                        }
+                        make_next_scope_region = .disregard;
+                    }
+
+                case .r_brace; #through;
+                case .r_bracket; #through;
+                case .r_paren;
+                    is_dedent = true;
+                    if token.punctuation == .r_brace {
+                        scope_start := pop(*scope_stack);
+                        if scope_start >= 0 {
+                            region_type := pop(*region_stack);
+                            if region_type {
+                                depth :: cast(s8) 1;
+                                add_buffer_region(buffer, scope_start, token.start + 1, true, depth);
+                            }
+                        }
+                    }
             }
-        } else if token.type == .keyword && token.keyword == .kw_inline {
-            // Handle "func :: inline"
-            before_prev, prev := last_tokens[0], last_tokens[1];
-            if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
-                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+        }
+        else if token.type == .keyword {
+            if token.keyword == .kw_inline {
+                // Handle "func :: inline"
+                if before_prev_token.type == .identifier && prev_token.type == .operation && prev_token.operation == .double_colon {
+                    memset(colors.data + before_prev_token.start, xx Code_Color.FUNCTION, before_prev_token.len);
+                    // @TODO next token should be l_paren, and should start scope
+                }
             }
+        }
+        else if token.type == .operation {
+            if token.operation == .arrow {
+                if prev_token.type == .compiler_directive && prev_token.compiler_directive == .directive_insert
+                    make_next_scope_region = .compile_time;
+            }
+        }
+        else if token.type == .compiler_directive {
+            if token.compiler_directive == .directive_modify
+                make_next_scope_region = .compile_time;
+        }
+
+        if is_dedent {
+            current_indent_level -= 1;
+            if current_indent_level < 0  current_indent_level = 0;
+            //if is_new_line  indent_level[line_starts[line_start_index] - 1] = current_indent_level; @Autoindent
+        }
+        else {
+            is_new_line = false;
         }
 
         // Remember last 2 tokens
-        last_tokens[0] = last_tokens[1];
-        last_tokens[1] = token;
+        before_prev_token = prev_token;
+        prev_token = token;
 
         color := COLOR_MAP[token.type];
-        memset(colors.data + token.start, xx color, token.len);
+
+        if token.type == .here_string {
+            if !parse_here_string(buffer, tokenizer, token)
+                memset(colors.data + token.start, xx color, token.len);
+
+            identifier_color := COLOR_MAP[Token.Type.compiler_directive]; // @TODO add color specifically for herestring identifiers
+            memset(colors.data + token.start, xx identifier_color, token.sublen);
+            memset(colors.data + token.start + token.len - token.sublen, xx identifier_color, token.sublen);
+        }
+        else {
+            memset(colors.data + token.start, xx color, token.len);
+        }
+    }
+
+    while !is_empty(scope_stack) {
+        scope_start := pop(*scope_stack);
+        if scope_start >= 0 {
+            region_type := pop(*region_stack);
+            if region_type {
+                depth :: cast(s8) 1;
+                add_buffer_region(buffer, scope_start, xx (max_t - bytes.data), true, depth);
+            }
+        }
+    }
+
+    if reset_regions {
+        quick_sort(regions, x => x.start_offset);
+    }
+    else {
+        // We're in an inner jai code block, i.e. a string, i.e. a format string
+        // So... highlight any % markers
+        percent_color := COLOR_MAP[Token.Type.punctuation];
+        zero_color := COLOR_MAP[Token.Type.comment];
+        s := initial_string;
+        start_index := initial_string.data - buffer.bytes.data;
+        index, found := strings.first_index(s, #char "%");
+        while found {
+            defer index, found = strings.first_index(s, #char "%", index);
+
+            if index >= s.count - 1 {
+                buffer.colors[start_index + index] = xx Code_Color.FORMAT_ITEM;
+                break;
+            }
+
+            next := s[index + 1];
+            if next == {
+                case #char "%";
+                memset(buffer.colors.data + start_index + index, xx percent_color, 2);
+                index += 2;
+
+                case #char "0";
+                memset(buffer.colors.data + start_index + index, xx zero_color, 2);
+                index += 2;
+
+                case;
+                if next >= #char "1" && next <= #char "9" {
+                    end_index := index + 2;
+                    while end_index < s.count && s[end_index] >= #char "0" && s[end_index] <= #char "9"
+                        end_index += 1;
+                    memset(buffer.colors.data + start_index + index, xx Code_Color.FORMAT_ITEM, end_index - index);
+                    index = end_index;
+                }
+                else {
+                    memset(buffer.colors.data + start_index + index, xx Code_Color.FORMAT_ITEM, 1);
+                    index += 2;
+                }
+            }
+        }
+    }
+
+    // @Autoindent
+    //array_add(*line_starts, cast(s32) bytes.count);  // last line
+}
+
+
+jai_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64) -> bool {
+    assert(cursor_pos > first_token_pos);
+    #run {
+        // Check that the short-circuit assumptions we use below still hold
+        assert(array_count_starts_with(KEYWORDS, "f") == 1);
+        assert(array_count_starts_with(KEYWORDS, "w") == 1);
+        assert(array_count_starts_with(KEYWORDS, "el") == 1);
+        assert(array_count_starts_with(KEYWORDS, "th") == 1);
+    }
+
+    i := first_token_pos;
+    length := cursor_pos - i;
+    if buffer.colors[i] == xx Code_Color.KEYWORD {
+        if length >= 2 && buffer.bytes[i] == #char "i" && buffer.bytes[i+1] == #char "f" && buffer.bytes[i+2] != #char "x" // if
+        || length >= 3 && buffer.bytes[i] == #char "f" // for
+        || length >= 5 && buffer.bytes[i] == #char "w" // while
+            return true;
+    }
+
+    i = cursor_pos - 1;
+    while i > first_token_pos && is_whitespace_char(buffer.bytes[i])
+        i -= 1;
+
+    if buffer.colors[i] == xx Code_Color.KEYWORD {
+        while i > first_token_pos && buffer.colors[i - 1] == xx Code_Color.KEYWORD
+            i -= 1;
+        length = cursor_pos - i;
+        return length >= 4 && buffer.bytes[i] == #char "e" && buffer.bytes[i+1] == #char "l" // else
+            || length >= 4 && buffer.bytes[i] == #char "t" && buffer.bytes[i+1] == #char "h"; // then
+    }
+
+    return false;
+}
+
+jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
+    cursor := *editor.cursors[editor.main_cursor];
+
+    // @TODO don't select, just get the word at the cursor
+    select_word(buffer, cursor);
+    selected_text := get_selected_string(cursor, buffer);
+
+    /*
+    pos, found := declaration_pos_for_word(buffer.file.full_path, cursor.pos, selected_text);
+    print("% % %\n", line_col(cursor.pos), line_col(pos), found);
+    if found {
+        cursor.pos = pos;
+        cursor.sel = pos + cast(s32)word.count;
+        cursor.col_wanted = -1;
+        editor.cursor_moved = .jumped;
+    }
+    */
+
+    if selected_text && selected_text != to_string(finder.input.text) && offset_to_line(editor, buffer, cursor.pos) == offset_to_line(editor, buffer, cursor.sel) {
+        definition := tprint("%:", selected_text);
+        finder_open(definition);
+    }
+
+}
+
+jai_parse_file :: (file_info: File_Info, files: *Table(string, []*Node) = null) {
+    if !files  files = *jai_files;
+
+    _, found := table_find(files, file_info.full_path);
+    if found  return;
+
+    parser : Parser(Node_Visit_Data);
+    parser.user_data = .{
+        files=files,
+        file_info=file_info,
+    };
+    parser.node_visit = node_visit;
+    parser.lexer = *create_lexer(read_entire_file(file_info.full_path), file_info.full_path);
+
+    nodes: [..]*Node;
+
+    table_set(*jai_files, file_info.full_path, nodes);
+
+    while !end(parser.lexer) {
+        node := parse(*parser, null);
+        if !node continue;
+        array_add(*nodes, node);
+    }
+
+    table_set(*jai_files, file_info.full_path, nodes);
+
+    for file, path: jai_files {
+        print("%:\n", path);
+        for node: file
+            print("%\n", node.*);
+        print("\n");
     }
 }
 
+
 #scope_file
 
+
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {
-    t = eat_white_space(t, max_t);
+    t = eat_white_space(t, max_t, tokenizer.the_buffer);
 
     token: Token;
     token.start = cast(s32) (t - buf.data);
@@ -118,12 +372,28 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 
     // Check for here-string
-    if last_tokens[1].type == .compiler_directive && last_tokens[1].compiler_directive == .directive_string {
+    if prev_token.type == .compiler_directive && prev_token.compiler_directive == .directive_string {
         token.type = .here_string;
+        token.sublen = xx identifier_str.count;
         end := find_index_from_left(buf, identifier_str, start_index = t - buf.data);
         if end < 0 { t = max_t; return; }
         t = buf.data + end + identifier_str.count;
     }
+}
+
+parse_here_string :: (using buffer: *Buffer, using tokenizer: *Tokenizer, token: Token) -> handled: bool{
+    assert(token.type == .here_string);
+    if token.len < token.sublen * 2  return false;
+
+    identifier : string = ---;
+    identifier.data = buffer.bytes.data + token.start;
+    identifier.count = token.sublen;
+    language := language_from_extension(identifier);
+
+    depth := cast(s8) ifx language == .Jai && peek(region_stack) == .compile_time then 0 else 1;
+    add_buffer_region(buffer, token.start, token.start + token.len, false, depth);
+
+    return maybe_highlight_inner_language(buffer, language, token.start + token.sublen, token.len - token.sublen * 2);
 }
 
 parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
@@ -162,7 +432,7 @@ parse_compiler_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .identifier;
 
     t += 1;
-    t = eat_white_space(t, max_t);  // there may be spaces between the # and the name
+    t = eat_white_space(t, max_t, tokenizer.the_buffer);  // there may be spaces between the # and the name
     if !is_alpha(<<t) return;
 
     mark := get_temporary_storage_mark();
@@ -179,6 +449,8 @@ parse_compiler_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     if ok {
         token.type = .compiler_directive;
         token.compiler_directive = directive;
+        if directive == .directive_asm
+            make_next_scope_region = .asm;
     }
 }
 
@@ -458,17 +730,25 @@ read_identifier_string_tmp :: (using tokenizer: *Tokenizer) -> string /* temp */
 }
 
 Tokenizer :: struct {
+    the_buffer : *Buffer;
     buf: string;
     max_t:   *u8;
     start_t: *u8;  // cursor when starting parsing new token
     t:       *u8;  // cursor
 
-    last_tokens: [2] Token;  // to retroactively highlight functions
+    make_next_scope_region: enum { disregard; regular; asm; compile_time; };
+
+    scope_stack : Stack(64, cast(s32) -1); // start pos, or -1 for disregard
+    region_stack : Stack(64, type_of(make_next_scope_region).disregard);
+
+    prev_token : Token;
+    before_prev_token : Token;
 }
 
 Token :: struct {
     start, len: s32;
     type: Type;
+    sublen: s32;
 
     // Additional info to distinguish between keywords/punctuation
     union {
@@ -492,10 +772,32 @@ Token :: struct {
         modifier_keyword;
         keyword;
         type_keyword;
+        jump_keyword;
         value_keyword;
         compiler_directive;
         invalid;
     }
+}
+
+print_token :: (buffer: *Buffer, using token: Token) {
+    b : String_Builder;
+    print_to_builder(*b, "% % ", start, type);
+    if type == {
+        case .keyword; print_to_builder(*b, ": %", keyword);
+        case .punctuation; print_to_builder(*b, ": %", punctuation);
+        case .operation; print_to_builder(*b, ": %", operation);
+        case .compiler_directive; print_to_builder(*b, ": %", compiler_directive);
+    }
+    append(*b, " ");
+    append(*b, to_string(buffer, token));
+    print("%\n", builder_to_string(*b));
+}
+
+to_string :: (buffer: *Buffer, token: Token) -> string {
+    result : string = ---;
+    result.data = *buffer.bytes[token.start];
+    result.count = token.len;
+    return result;
 }
 
 // Must match the order of the types in the enum
@@ -512,8 +814,9 @@ COLOR_MAP :: Code_Color.[
     .KEYWORD,       // keyword
     .KEYWORD,       // modifier_keyword
     .TYPE,          // type_keyword
+    .JUMP_KEYWORD,  // jump_keyword
     .VALUE_KEYWORD, // value_keyword
-    .KEYWORD,       // compiler_directive
+    .DIRECTIVE,     // compiler_directive
     .ERROR,         // invalid
 ];
 
@@ -531,9 +834,13 @@ OPERATIONS :: string.[
 ];
 
 KEYWORDS :: string.[
-    "align_of", "break", "case", "cast", "code_of", "continue", "defer", "else", "enum", "enum_flags", "for",
-    "if", "ifx", "is_constant", "inline", "push_context", "return", "size_of", "struct", "then", "type_info", "type_of",
+    "align_of", "case", "cast", "code_of", "else", "enum", "enum_flags", "for",
+    "if", "ifx", "is_constant", "inline", "push_context", "size_of", "struct", "then", "type_info", "type_of",
     "union", "using", "while", "xx", "operator", "remove",
+];
+
+JUMP_KEYWORDS :: string.[
+    "break", "continue", "defer", "return",
 ];
 
 TYPE_KEYWORDS :: string.[
@@ -580,7 +887,7 @@ MODIFIERS :: string.[
 
     define_enum(*b, "Punctuation",        "",           .[PUNCTUATION]);
     define_enum(*b, "Operation",          "",           .[OPERATIONS]);
-    define_enum(*b, "Keyword",            "kw_",        .[KEYWORDS, TYPE_KEYWORDS, VALUE_KEYWORDS]);
+    define_enum(*b, "Keyword",            "kw_",        .[KEYWORDS, TYPE_KEYWORDS, JUMP_KEYWORDS, VALUE_KEYWORDS]);
     define_enum(*b, "Compiler_Directive", "directive_", .[COMPILER_DIRECTIVES]);
 
     return builder_to_string(*b);
@@ -593,13 +900,14 @@ Keyword_Token :: struct {
 
 KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
     table: Table(string, Keyword_Token);
-    size := 2 * (KEYWORDS.count + TYPE_KEYWORDS.count + VALUE_KEYWORDS.count);
+    size := 2 * (KEYWORDS.count + TYPE_KEYWORDS.count + JUMP_KEYWORDS.count + VALUE_KEYWORDS.count);
     init(*table, size);
 
     #insert -> string {
         b: String_Builder;
         for KEYWORDS        append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .keyword,       keyword = .kw_% });\n", it, it));
         for TYPE_KEYWORDS   append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .type_keyword,  keyword = .kw_% });\n", it, it));
+        for JUMP_KEYWORDS   append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .jump_keyword,  keyword = .kw_% });\n", it, it));
         for VALUE_KEYWORDS  append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .value_keyword, keyword = .kw_% });\n", it, it));
         return builder_to_string(*b);
     }
@@ -639,9 +947,10 @@ MAX_DIRECTIVE_LENGTH :: #run -> s32 {
 }
 
 
-eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
+eat_white_space :: inline (start: *u8, max_t: *u8, using buffer: *Buffer) -> *u8 {
     t := start;
-    while t < max_t && is_white_space(<<t) {
+    while t < max_t && is_white_space(t.*) {
+        //if t.* == #char "\n"  array_add(*line_starts, cast(s32)(t - buffer.bytes.data) + 1); @Autoindent
         t += 1;
     }
     return t;
@@ -651,5 +960,102 @@ is_white_space :: inline (c: u8) -> bool {
     return c == #char " " || c == #char "\r" || c == #char "\n";
 }
 
+declaration_pos_for_word :: (path: string, word_pos: s32, word: string, v : Vector3 = .{}) -> pos: s32, found: bool {
+    print("Searching for declaration in %\n", path);
+    /*
+    jai_file := get_jai_file(path);
+    if !jai_file  return -1, false;
 
+    pos : s32 = -1;
+
+    for jai_file.declarations {
+        if it.pos > word_pos
+            break;
+
+        if it.name == word {
+            scope := jai_file.scopes[it.scope_index];
+            if scope.start <= word_pos && word_pos <= scope.end {
+                pos = it.pos;
+            }
+        }
+    }
+
+    return pos, pos >= 0;
+    */
+    return 0, false;
+}
+
+
+jai_files : Table(string, []*Node);
+
+// @TODO no lol
+JAI_PATH :: #run find_current_jai_path();
+JAI_MODULES_PATH :: #run tprint("%/modules", JAI_PATH);
+
+Node_Visit_Data :: struct {
+    file_info: File_Info;
+    files: *Table(string, []*Node);
+}
+
+node_visit :: (node: *Node, data: Node_Visit_Data) {
+    if node.kind == .DIRECTIVE_IMPORT {
+        _import := cast(*Directive_Import) node;
+
+        file_info : File_Info = ---;
+
+        if _import.import_kind == {
+            case .MODULE;
+                module_path := tprint("%/%", JAI_MODULES_PATH, _import.module);
+                //print("----------\n% %\n", module_path, get_module_entry(module_path));
+                file_info = get_file_info_from_path_plus_filename(module_path, get_module_entry(module_path));
+            case .FILE;
+                file_info = file_info_for_adjacent_file(_import.module, data.file_info);
+            case .DIR;
+                file_info =  file_info_for_adjacent_file(get_module_entry(_import.module), data.file_info);
+            case .STRING;
+                // @TODO: Do we wanna parse the string here?
+                return;
+        }
+
+        jai_parse_file(data.file_info, data.files); // @TODO: Run this in another thread?
+    }
+
+    if node.kind == .DIRECTIVE_LOAD {
+        _load := cast(*Directive_Load) node;
+        //print("----------\n% %\n", data.file_info.path, _load.file);
+        jai_parse_file(get_file_info_from_path_plus_filename(tprint("c:/repos/%", data.file_info.path), _load.file), data.files); // @TODO: Run this in another thread?
+    }
+}
+
+get_module_entry :: (root: string) -> string {
+    uri := tprint("%/module.jai", root);
+    if !file_exists(uri) {
+        uri = tprint("%.jai", root);
+    }
+
+    return uri;
+}
+
+find_current_jai_path :: () -> string {
+
+    remove_trailing_slash :: (path: string) -> string {
+        result := path;
+        if path[path.count - 1] == #char "/" result.count -= 1;
+        return result;
+    }
+
+    Compiler :: #import "Compiler";
+    options := Compiler.get_build_options();
+    for options.import_path {
+        if find_index_from_left(to_lower_copy(it), "jai/modules") != -1 {
+            modules_path := remove_trailing_slash(it);
+            base_path := remove_trailing_slash(path_strip_filename(modules_path));
+            return base_path;
+        }
+    }
+
+    return "";
+}
+
+#import "jai_parser";
 #import "Hash_Table";

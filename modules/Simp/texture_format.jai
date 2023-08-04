@@ -111,10 +111,10 @@ get_image_bytes_per_texel :: (tf: Texture_Format) -> int {
     // and that's how it knows to go to the block format version of size
     // querying. Ehh, I don't think I like that design much, but for now
     // I will let it stand.
-    
+
     // log("Error: Attempted to get bytes per texel for a block format or invalid format %.", tf);
     // assert(false);
-    
+
     return 0;
 }
 
@@ -141,11 +141,11 @@ get_image_bytes_per_block :: (tf: Texture_Format) -> int {
         case ETC_RG;
             return 16;
     }
-    
+
     // :NoErrorOnZero
     // Commented out for consistency with the above.
     // log("Error: Attempted to get bytes per block for a non-block format or invalid format %.", tf);
     // assert(false);
-    
+
     return 0;
 }

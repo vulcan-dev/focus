@@ -110,7 +110,8 @@ toggle_fullscreen :: (hwnd: HWND, desire_fullscreen: bool, saved: *Saved_Window_
     }
 }
 
-// WINDOWED_STYLE   : s32 : WS_VISIBLE | WS_CAPTION | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU | WS_SIZEBOX;
+//WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+//WINDOWED_STYLE   : u32 : WS_OVERLAPPED | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
 WINDOWED_STYLE         : u32 : WS_OVERLAPPEDWINDOW;
 FULLSCREEN_STYLE       : u32 : WS_VISIBLE | WS_POPUP;
 SECONDARY_WINDOW_STYLE : u32 : WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME;
@@ -252,7 +253,6 @@ get_mouse_pointer_position :: inline (right_handed := false) -> x: int, y: int, 
     x, y, success := get_mouse_pointer_position(hwnd, right_handed);
     return x, y, success;
 }
-
 
 #scope_module
 

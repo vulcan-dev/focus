@@ -416,6 +416,7 @@ recalculate_colors :: (buffer: *Buffer) {
         case .C;            highlight_c_syntax(buffer);
         case .CSharp;       highlight_csharp_syntax(buffer);
         case .Focus_Config; highlight_focus_config_syntax(buffer);
+        case .Markdown;     highlight_md_syntax(buffer);
         case .Glsl;         highlight_glsl_syntax(buffer);
         case .Worklog;      highlight_worklog(buffer);
     }
@@ -694,14 +695,19 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
     }
     lock(*open_buffers_lock);
 
-    buffer_id, found_buffer := table_find(*buffers_table, path);
+    #if OS == .WINDOWS {
+        buffer_id, found_buffer := table_find(*buffers_table, temp_strings.lower(path));
+    }
+    else {
+        buffer_id, found_buffer := table_find(*buffers_table, path);
+    }
     buffer: *Buffer = ---;
 
     if !found_buffer {
         buffer_id = open_buffers.count;
         buffer = bucket_array_add(*open_buffers);
         init_buffer(buffer);
-        table_add(*buffers_table, copy_string(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
+        table_add(*buffers_table, new_strings.lower(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
     }
 
     unlock(*open_buffers_lock);  // only hold the lock when it's critical
@@ -915,7 +921,7 @@ unsaved_buffers_exist :: () -> bool {
     // Perhaps I should write an unsaved buffers http service,
     // which would tell me if they exist in a O(1) time?
     for open_buffers {
-        if it.modified return true;
+        if it.modified && !it.readonly && !it.ignore  return true;
     }
     return false;
 }
@@ -924,6 +930,20 @@ remove_all_buffers :: () {
     deinit(*buffers_table);
     for * open_buffers free_buffer(it);
     bucket_array_reset(*open_buffers);
+}
+
+clear_buffer :: (using buffer: *Buffer) {
+    if bytes  delete_range_raw(buffer, 0, bytes.count);
+    clear_undos(buffer);
+    clear_redos(buffer);
+}
+
+reset_buffer_regions :: (using buffer: *Buffer) {
+    array_reset(*regions);
+}
+
+add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8) {
+    array_add(*regions, .{ start_offset, end_offset, inclusive, depth });
 }
 
 #scope_file
@@ -978,6 +998,12 @@ new_delete_edit :: (buffer: *Buffer, start: s32, end: s32, old_str: string) {
     clear_redos(buffer);
 }
 
+
+clear_undos :: (using buffer: *Buffer) {
+    for * undos  deinit(it);
+    array_reset_keeping_memory(*undos);
+}
+
 clear_redos :: (using buffer: *Buffer) {
     for * redos  deinit(it);
     array_reset_keeping_memory(*redos);
@@ -1015,7 +1041,19 @@ Buffer :: struct {
     bytes: [..] u8;
     line_starts: [..] s32;       // real offsets of newlines in the bytes array
 
-    colors: [..] u8;             // we color each byte (even for multi-byte chars). TODO: change this to range-based coloring
+    union {
+        colors: [..] u8;         // We color each byte (even for multi-byte chars). TODO: change this to range-based coloring
+        indent_level: [..] s8;   // @TODO move out of union and make work
+    }
+
+    regions : [..] struct {
+        start_offset : s32;
+        end_offset : s32;
+        inclusive := false;
+        depth : s8;
+    };
+
+    decorations : [..] Decoration;
 
     // TODO: put into enum_flags
     has_file               := false;  // a buffer might not have a corresponding file
@@ -1026,6 +1064,7 @@ Buffer :: struct {
     deleted                := false;
     needs_coloring         := false;
     readonly               := false;
+    ignore                 := false;
     binary                 := false;
     error_when_saving      := false;
     crlf                   := false;
@@ -1046,6 +1085,7 @@ Buffer :: struct {
         C;
         CSharp;
         Focus_Config;
+        Markdown;
         Glsl;
         Worklog;
     } = .Plain_Text;
@@ -1105,6 +1145,20 @@ Coords :: struct {
     line, col: s32;
 }
 
+coords_from_string :: (s: string) -> Coords, ok: bool {
+    result : Coords = ---;
+    line_s, col_s := strings.split_into_two(s, #char ",");
+    line, ok := parse_int(*line_s);
+    if !ok  return result, false;
+    result.line = xx (line - 1);
+
+    col, ok= := parse_int(*col_s);
+    if !ok  return result, false;
+    result.col = xx (col - 1);
+
+    return result, ok;
+}
+
 Offset_Range :: struct {
     start, end: s32;  // we won't open large files anyway
 }
@@ -1113,3 +1167,14 @@ Coords_Range :: struct {
     start, end: Coords;
 }
 
+Decoration :: struct {
+    type : enum {
+        COLOR_SQUARE;
+    }
+    position: Offset_Range;
+    color : Color;
+}
+
+add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Color) {
+    array_add(*decorations, .{ .COLOR_SQUARE, .{position, position}, color});
+}

@@ -17,6 +17,8 @@ Color_Values :: struct {
     BACKGROUND_HIGHLIGHT    := Color.{ r = 0.097, g = 0.15, b = 0.185 };
     BACKGROUND_LIGHT        := Color.{ r = 0.102, g = 0.158, b = 0.195 };
     BACKGROUND_BRIGHT       := Color.{ r = 0.131, g = 0.202, b = 0.25 };
+    BACKGROUND_REGION       := Color.{ r = 0.131, g = 0.202, b = 0.25, a = 0.02 };
+
     SELECTION_ACTIVE        := Color.{ r = 0.11, g = 0.267, b = 0.29 };
     SELECTION_INACTIVE      := Color.{ r = 0.11, g = 0.267, b = 0.29, a = 0.5 };
     SELECTION_HIGHLIGHT     := Color.{ r = 0.99, g = 0.93, b = 0.99, a = 0.15 };
@@ -36,6 +38,7 @@ Color_Values :: struct {
     SHADOW_DARK             := Color.{ r = 0.057, g = 0.089, b = 0.11, a = 0.5 };
     SHADOW_TRANSPARENT      := Color.{ r = 0.057, g = 0.089, b = 0.11, a = 0 };  // for interpolation
     TEXT_INPUT_LABEL        := Color.{ r = 0.233, g = 0.269, b = 0.316, a = 1.0 };
+    MOTIF                   := Color.{ r = 0.459, g = 0.369, b = 0.184 };
 
     UI_DEFAULT              := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     UI_DIM                  := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };
@@ -56,7 +59,10 @@ Color_Values :: struct {
     CODE_VALUE              := Color.{ r = 0.84, g = 0.60, b = 0.71, a = 1.0 };
     CODE_HIGHLIGHT          := Color.{ r = 0.85, g = 0.61, b = 0.46, a = 1.0 };
     CODE_ERROR              := Color.{ r = 1.00, g = 0.00, b = 0.00, a = 1.0 };
+    CODE_JUMP               := Color.{ r = 0.902, g = 0.493, b = 0.457, a = 1.0 };
+    CODE_DIRECTIVE          := Color.{ r = 0.493, g = 0.902, b = 0.457, a = 1.0 };
     CODE_KEYWORD            := Color.{ r = 0.902, g = 0.493, b = 0.457, a = 1.0 };
+    CODE_FORMAT_ITEM        := Color.{ r = 0.493, g = 0.902, b = 0.902, a = 1.0 };
 };
 
 Colors: Color_Values;  // a hack to avoid replacing a lot of code
@@ -65,7 +71,9 @@ Code_Color :: enum u8 {
     DEFAULT;
     COMMENT;
     TYPE;
+    DIRECTIVE;
     KEYWORD;
+    JUMP_KEYWORD;
     VALUE_KEYWORD;
     VALUE;
     FUNCTION;
@@ -73,6 +81,7 @@ Code_Color :: enum u8 {
     STRING;
     ERROR;
     OPERATION;
+    FORMAT_ITEM;
 
     NUM_COLORS;
 }
@@ -86,15 +95,18 @@ refresh_code_color_map :: () -> [Code_Color.NUM_COLORS] Vector4 {
 
     result[DEFAULT]         = Colors.CODE_DEFAULT;
     result[COMMENT]         = Colors.CODE_COMMENT;
+    result[DIRECTIVE]       = Colors.CODE_DIRECTIVE;
     result[TYPE]            = Colors.CODE_TYPE;
     result[FUNCTION]        = Colors.CODE_FUNCTION;
     result[PUNCTUATION]     = Colors.CODE_PUNCTUATION;
     result[STRING]          = Colors.CODE_STRING;
     result[VALUE]           = Colors.CODE_VALUE;
+    result[JUMP_KEYWORD]    = Colors.CODE_JUMP;
     result[VALUE_KEYWORD]   = Colors.CODE_VALUE;
     result[ERROR]           = Colors.CODE_ERROR;
     result[KEYWORD]         = Colors.CODE_KEYWORD;
     result[OPERATION]       = Colors.CODE_OPERATION;
+    result[FORMAT_ITEM]     = Colors.CODE_FORMAT_ITEM;
 
     return result;
 }
@@ -110,4 +122,11 @@ as_3_floats :: (color: Color) -> [3] float {
 
 is_none :: (using color: Color) -> bool {
     return r < 0 || g < 0 || b < 0 || a < 0;
+}
+
+
+with_alpha :: (color: Color, alpha: float) -> Color {
+    result := color;
+    result.a = alpha;
+    return result;
 }

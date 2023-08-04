@@ -34,6 +34,10 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
     return success, changed, there_were_warnings;
 }
 
+get_project_config_path :: (project_name: string) -> string {
+    return sprint("%/%.focus-config", projects_dir, project_name);
+}
+
 refresh_config :: (path: string) {
     old_workspace_dirs := array_copy_tmp(config.workspace.workspace_dirs);
 
@@ -82,6 +86,8 @@ refresh_config :: (path: string) {
             should_reload_workspace = false;
         }
     }
+
+    run_config_refresh_hooks();
 
     dont_ignore_next_window_resize = true;
     platform_apply_config(*config.platform);
@@ -166,6 +172,13 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> succes
 
     // Apply colors
     Colors = config.colors;
+    if DEBUG && debug_change_color {
+        Colors.BACKGROUND =           Color.{ r = 0.086, g = 0.165, b = 0.133 };
+        Colors.BACKGROUND_DARK =      Color.{ r = 0.065, g = 0.125, b = 0.101 };
+        Colors.BACKGROUND_HIGHLIGHT = Color.{ r = 0.097, g = 0.185, b = 0.15  };
+        Colors.BACKGROUND_LIGHT =     Color.{ r = 0.102, g = 0.195, b = 0.158 };
+        Colors.BACKGROUND_BRIGHT =    Color.{ r = 0.131, g = 0.25,  b = 0.202 };
+    }
     CODE_COLOR_MAP = refresh_code_color_map();
 
     // Make sure the values are within the acceptable range
@@ -321,6 +334,7 @@ Workspace :: struct {
 Settings :: struct {
     maximize_on_start                   := false;
     open_on_the_biggest_monitor         := true;
+    open_on_monitor_one                 := false;
     cursor_as_block                     := true;
     highlight_selection_occurrences     := true;
     disable_that_annoying_paste_effect  := false;
@@ -336,6 +350,9 @@ Settings :: struct {
     can_cancel_go_to_line               := true;
     copy_whole_line_without_selection   := false;
     editor_history_size                 := 128;
+    scroll_to_cursor_line_offset        := 1;
+    ignore_whitespace_in_finder         := false;
+    ignore_whitespace_in_search_bar     := false;
     line_wrap_is_on_by_default          := false;
     show_line_numbers                   := false;
 
@@ -363,6 +380,31 @@ Setting :: struct {
     type: enum { boolean; integer; };
 }
 
+SETTINGS :: Setting.[
+    .{ "maximize_on_start",                   .boolean },
+    .{ "open_on_the_biggest_monitor",         .boolean },
+    .{ "open_on_monitor_one",                 .boolean },
+    .{ "cursor_as_block",                     .boolean },
+    .{ "highlight_selection_occurrences",     .boolean },
+    .{ "disable_that_annoying_paste_effect",  .boolean },
+    .{ "disable_file_open_close_animations",  .boolean },
+    .{ "double_shift_to_search_in_workspace", .boolean },
+    .{ "insert_spaces_when_pressing_tab",     .boolean },
+    .{ "strip_trailing_whitespace_on_save",   .boolean },
+    .{ "smooth_scrolling",                    .boolean },
+    .{ "can_cancel_go_to_line",               .boolean },
+    .{ "copy_whole_line_without_selection",   .boolean },
+    .{ "ignore_whitespace_in_finder",         .boolean },
+    .{ "ignore_whitespace_in_search_bar",     .boolean },
+
+    .{ "max_entries_in_open_file_dialog",     .integer },
+    .{ "tab_size",                            .integer },
+    .{ "line_height_scale_percent",           .integer },
+    .{ "max_editor_width",                    .integer },
+    .{ "editor_history_size",                 .integer },
+    .{ "scroll_to_cursor_line_offset",        .integer },
+];
+
 DEFAULT_CONFIG_FILE_DATA  :: #run read_entire_file(DEFAULT_CONFIG_NAME);
 EXAMPLE_PROJECT_FILE_DATA :: #run read_entire_file(EXAMPLE_PROJECT_CONFIG_NAME);
 
@@ -374,7 +416,6 @@ EXAMPLE_PROJECT_FILE_DATA :: #run read_entire_file(EXAMPLE_PROJECT_CONFIG_NAME);
     DEFAULT_CONFIG_NAME :: "default.focus-config";
 }
 EXAMPLE_PROJECT_CONFIG_NAME :: "example-project.focus-config";
-
 
 #scope_export
 
@@ -393,3 +434,4 @@ DEFAULT_CONFIG :: #run -> Config {
 }
 
 #load "config_parser.jai";
+

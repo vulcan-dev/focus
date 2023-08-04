@@ -66,7 +66,8 @@ show_open_file_dialog :: (mode: Open_File_Dialog.Mode, from_root := false) {
         // Derive the path chunks from the current open file
         editor, buffer := get_active_editor_and_buffer();
         if active_global_widget == .editors && buffer && buffer.has_file then set_path_chunks_from_file(buffer.file.full_path);
-    } else {
+    }
+    else {
         clear_path_chunks();
     }
 
@@ -256,14 +257,15 @@ refresh_entries :: (clear_input := true) {
     entries.selected = 0;
     array_reset(*entries.filtered);
 
-    filter_chars := decode_utf8_string_to_temp_char_substrings(to_string(input.text));
+    input_string := to_string(input.text);
+    filter_chars := decode_utf8_string_to_temp_char_substrings(input_string);
 
     if #complete mode == {
         case .navigate;
             if !path_chunks {
                 // Display project dirs and drives
                 for project_dirs {
-                    score, name_highlights := fuzzy_match(it.name, filter_chars);
+                    score, name_highlights := fuzzy_match(it.name, filter_chars, input_string);
                     if score < 0 continue;
 
                     entry := array_add(*entries.filtered);
@@ -284,7 +286,7 @@ refresh_entries :: (clear_input := true) {
                 for platform_enumerate_logical_drives() {
                     name := copy_string(it);
 
-                    score, name_highlights := fuzzy_match(name, filter_chars);
+                    score, name_highlights := fuzzy_match(name, filter_chars, input_string);
                     if score < 0 continue;
 
                     entry := array_add(*entries.filtered);
@@ -305,7 +307,7 @@ refresh_entries :: (clear_input := true) {
             } else {
                 // Filter current files
                 for current_files {
-                    score, name_highlights := fuzzy_match(it.name, filter_chars);
+                    score, name_highlights := fuzzy_match(it.name, filter_chars, input_string);
                     if score < 0 continue;
 
                     entry := array_add(*entries.filtered);
@@ -329,6 +331,7 @@ refresh_entries :: (clear_input := true) {
             top_priority_bit: u64 = 1 << 62;  // NOT the topmost bit because we'll be converting to s64 later
 
             for buffer, buffer_id : open_buffers {
+                if buffer.ignore  continue;
                 if buffer.deleted && !buffer.modified continue;  // NOTE: we might still want to see externally deleted buffers.
                                                                  // Maybe use 'deleted' and 'modified_on_disk' to distingiush the buffers
                                                                  // we haven't deleted ourselves?
@@ -336,8 +339,8 @@ refresh_entries :: (clear_input := true) {
                                                                  // still want to see it here
 
                 buffer_name := get_buffer_name(buffer);
-                name_score, name_highlights := fuzzy_match(buffer_name, filter_chars);
-                path_score, path_highlights := fuzzy_match(buffer.file.path, filter_chars);
+                name_score, name_highlights := fuzzy_match(buffer_name, filter_chars, input_string);
+                path_score, path_highlights := fuzzy_match(buffer.file.path, filter_chars, input_string);
                 score := 200 * name_score + path_score;  // name score is much more important
                 if score < 0 continue;
 

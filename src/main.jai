@@ -1,5 +1,20 @@
+DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
+DEBUG_CHANGE_COLOR :: true;
+DEBUG_SMALL_WINDOW :: true;
+DEBUG_SHOW_COLOR :: true;
+
+FOOTER_AT_TOP :: true;
+
+HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
+
+
 main :: () {
     cpu_info = get_cpu_info();
+
+    args := get_command_line_arguments();
+    is_standalone_debug_build := args[0] == "focus_debug";
+    debug_change_color &= is_standalone_debug_build;
+    debug_small_window &= is_standalone_debug_build;
 
     platform_setup();
 
@@ -24,8 +39,21 @@ main :: () {
     load_global_config(fallback_to_default_on_failure = true);
     init_workspace();
     init_buffers();
+    init_console();
 
-    window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
+    if config.settings.open_on_monitor_one {
+        window_x = 1920;
+        window_y = 0;
+        window_width = 1542;
+        window_height = 1048;
+        if DEBUG && debug_small_window {
+            window_width = window_width * 2 / 3;
+            window_height = window_height * 2 / 3;
+        }
+    }
+    else {
+        window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
+    }
 
     window_generic_title = ifx DEBUG then "Focus (debug mode)" else "Focus";
     platform_create_window();
@@ -37,8 +65,6 @@ main :: () {
             if !success then log_error("Couldn't load project config '%'", session.project);
         }
     }
-
-    args := get_command_line_arguments();
 
     if args.count == 2 {
         // Check if a directory or file was passed in the command line (or by drag/dropping a file/directory onto the executable)
@@ -70,6 +96,7 @@ main :: () {
     window_width, window_height = Simp.get_render_dimensions(window);
     screen = make_rect(0, 0, window_width, window_height);
     Simp.set_render_target(window);
+    simp_initialized = true;
 
     // Init logger after we know the session dir and the config
     init_logger();
@@ -80,6 +107,7 @@ main :: () {
 
     dpi_scale = platform_get_dpi_scale(window);
     init_fonts_and_dependent_things();
+    using font_data;
     old_line_height = line_height;
 
     window_has_focus := true;
@@ -91,13 +119,22 @@ main :: () {
         press_count := 0;
     };
 
+    if eye_tracking_active {
+        eye_tracking_init();
+    }
+
     // On Wayland and X11 the main window needs to be mapped before we can get input focus.
     // Thus we force one draw here in order to ensure we start the main loop with the window
     // in the correct state.
     draw_frame();
 
     while !should_quit {
+        redraw_requested = true;
         if !redraw_requested platform_wait_message();
+
+        if eye_tracking_active {
+            eye_tracking_tick();
+        }
 
         Input.update_window_events();
 
@@ -105,6 +142,13 @@ main :: () {
         current_time := cast(Time) get_time();
         frame_dt   = min(current_time - frame_time, MAX_FRAME_DT);
         frame_time = current_time;
+
+        for delayed_action: delayed_actions {
+            if delayed_action.at <= frame_time {
+                delayed_action.action();
+                remove delayed_action;
+            }
+        }
 
         old_line_height = line_height;
         for Input.get_window_resizes() {
@@ -208,6 +252,21 @@ main :: () {
                         if event.key_pressed then last_press = frame_time;
                     }
 
+                    // Buffer switcher
+                    if event.key_code == .CTRL {
+                        if buffer_switcher_hot && !event.key_pressed
+                            finalize_buffer_switch();
+                        buffer_switcher_hot = event.key_pressed != 0;
+                    }
+
+                    // hard code Escape-Escape to close everything extraneous
+                    if event.key_pressed {
+                        if event.key_code == .ESCAPE && prev_key_pressed == .ESCAPE {
+                            cleanup_extraneous_windows();
+                        }
+                        prev_key_pressed = event.key_code;
+                    }
+
                 case .MOUSE_WHEEL;
                     #if OS != .MACOS {
                         if ctrl_or_cmd_pressed() {
@@ -289,9 +348,17 @@ main :: () {
         }
     }
 
+    if eye_tracking_active {
+        eye_tracking_done();
+    }
+
     // report := make_leak_report();
     // log_leak_report(report);
 }
+
+debug_change_color := DEBUG_CHANGE_COLOR;
+debug_small_window := DEBUG_SMALL_WINDOW;
+
 
 handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placement = .in_place) -> handled: bool {
     if action == {
@@ -300,6 +367,13 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .increase_font_size;                               increase_font_size();                               return true;
         case .decrease_font_size;                               decrease_font_size();                               return true;
         case .reset_font_size_to_default;                       reset_font_size_to_default();                       return true;
+
+        case .build_debug;                                      build(.DEBUG);                                      return true;
+        case .build_debug_and_run;                              build(.DEBUG_AND_RUN);                              return true;
+        case .build_release;                                    build(.RELEASE);                                    return true;
+        case .build_release_and_run;                            build(.RELEASE_AND_RUN);                            return true;
+        case .build_run_debug;                                  build(.RUN_DEBUG);                                  return true;
+        case .build_run_release;                                build(.RUN_RELEASE);                                return true;
 
         case .open_project; /* deprecated */                    show_open_project_dialog();                         return true;
         case .switch_to_project;                                show_open_project_dialog();                         return true;
@@ -316,14 +390,19 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_open_file_dialog_in_navigate_mode_from_root; show_open_file_dialog(.navigate, from_root = true); return true;
 
         case .show_commands;                                    show_commands_dialog();                             return true;
+        case .show_console;                                     show_console();                                     return true;
+        case .hide_console;                                     hide_console();                                     return true;
+        case .toggle_console;                                   toggle_console();                                   return true;
 
         case .dump_key_mappings;                                dump_key_mappings();                                return true;
 
         case .move_to_previous_editor_history;                  move_to_previous_editor_history();                  return true;
         case .move_to_next_editor_history;                      move_to_next_editor_history();                      return true;
 
-        case .move_to_previous_buffer;                          move_to_previous_editor_history(by_buffer = true);  return true;
-        case .move_to_next_buffer;                              move_to_next_editor_history    (by_buffer = true);  return true;
+        case .move_to_previous_buffer;                          move_to_previous_buffer();                          return true;
+        case .move_to_next_buffer;                              move_to_next_buffer();                              return true;
+
+        case .jump_to_error;                                    jump_to_error();
 
         // TODO: search_in_buffer
         case .search_in_project;
@@ -334,6 +413,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 }
 
 init_fonts_and_dependent_things :: () {
+    using font_data;
+
     delta := font_size - default_font_size;
     font_size               = clamp(font_size,                               MIN_FONT_SIZE, MAX_FONT_SIZE);
     font_ui_size            = clamp(DEFAULT_FONT_UI_SIZE            + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
@@ -347,6 +428,9 @@ init_fonts_and_dependent_things :: () {
 
     font = Simp.get_font_at_size(main_font_name, main_font_data, cast(int) (font_size * dpi_scale));
     assert(font != null, "Couldn't init main text font\n");
+
+    font_console = Simp.get_font_at_size(console_font_name, console_font_data, cast(int) (font_console_size * dpi_scale));
+    assert(font != null, "Couldn't init console font\n");
 
     font_ui = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_size * dpi_scale));
     assert(font_ui != null, "Couldn't init main ui font\n");
@@ -384,6 +468,7 @@ init_fonts_and_dependent_things :: () {
     // (TODO: maybe there's an easy way for Simp to only update textures on flush?)
     COMMON_CHARS :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789… ~!@#$%^&*()-|\"':;_+={}[]\\/`,.<>?АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчщъыьэюя¶•";
     Simp.prepare_text(font,             COMMON_CHARS);
+    Simp.prepare_text(font_console,     COMMON_CHARS);
     Simp.prepare_text(font_ui,          COMMON_CHARS);
     Simp.prepare_text(font_ui_bold,     COMMON_CHARS);
     Simp.prepare_text(font_ui_small,    COMMON_CHARS);
@@ -403,11 +488,16 @@ init_fonts_and_dependent_things :: () {
     Simp.prepare_text(font_icons,       icons_string);
     Simp.prepare_text(font_icons_tiny, icons_string);
 
-    // Things that depend on char size
+    init_font_data(*primary_font_info, font);
+    init_font_data(*console_font_info, font_console, 2.0);
+}
+
+init_font_data :: (data: *Font_Info, font: *Simp.Dynamic_Font, line_height_scale := 1.0) {
+    using data;
     char_size       = cast(float) font.em_width;
     char_x_advance  = cast(float) font.x_advance;
     old_line_height = line_height;
-    line_height     = floor(cast(float) font.default_line_spacing * cast(float)config.settings.line_height_scale_percent / 100.0);
+    line_height     = floor(cast(float) font.default_line_spacing * cast(float)config.settings.line_height_scale_percent / 100.0) * line_height_scale;
     scrollbar_size  = floor(1.5 * char_size);
     rounding_radius = floor(char_size / 2);
     rounding_radius_large = floor(char_size / 1.5);
@@ -477,6 +567,11 @@ decrease_font_size :: () {
 reset_font_size_to_default :: () {
     font_size = default_font_size;
     init_fonts_and_dependent_things();
+}
+
+cleanup_extraneous_windows :: () {
+    clear_user_messages();
+    hide_console();
 }
 
 panic :: (format_string: string, args: .. Any, exit_code : s32 = 1) {
@@ -587,6 +682,18 @@ Mouse_Button_State :: struct {
     last_double_click_time: Time;
 }
 
+Delayed_Action :: struct {
+    action : #type ();
+    at : Time;
+}
+
+delayed_actions : [..] Delayed_Action;
+
+add_delayed_action :: (action: #type (), delay: float64) {
+    array_add(*delayed_actions, .{ action, xx (frame_time + delay) });
+}
+
+
 WHEEL_SENSITIVITY :: 1.0;
 
 PEN_ICON            :: #run to_string(*convert_utf32_to_utf8(0xf304));
@@ -598,6 +705,7 @@ XMARK_ICON          :: #run to_string(*convert_utf32_to_utf8(0xf057));
 TAB_SIZE: s32 = 4;
 
 font:               *Simp.Dynamic_Font;
+font_console:       *Simp.Dynamic_Font;
 font_ui:            *Simp.Dynamic_Font;
 font_ui_bold:       *Simp.Dynamic_Font;
 font_ui_big:        *Simp.Dynamic_Font;
@@ -621,6 +729,9 @@ DEFAULT_FONT_ICONS_TINY_SIZE    :: 8;
 main_font_name := "default";
 main_font_data := #run FONT.data;
 
+console_font_name := "default";
+console_font_data := #run FONT_CONSOLE.data;
+
 default_font_size       := DEFAULT_FONT_SIZE;  // can be changed in the config
 
 font_size               := DEFAULT_FONT_SIZE;  // when changing font size, we change just this one and then derive the other ones from it
@@ -634,17 +745,26 @@ font_icons_small_size   := DEFAULT_FONT_ICONS_SMALL_SIZE;
 font_icons_tiny_size    := DEFAULT_FONT_ICONS_TINY_SIZE;
 
 // Depend on font size
-char_size:                  float;
-char_x_advance:             float;
-line_height:                float;
-old_line_height:            float;  // to track font changes
-font_ui_line_height:        float;
-font_ui_big_line_height:    float;
-font_ui_medium_line_height: float;
-rounding_radius:            float;
-rounding_radius_large:      float;
-rounding_radius_small:      float;
-scrollbar_size:             float;
+Font_Info :: struct {
+    char_size:                  float;
+    char_x_advance:             float;
+    line_height:                float;
+    old_line_height:            float;  // to track font changes
+    font_ui_line_height:        float;
+    font_ui_big_line_height:    float;
+    font_ui_medium_line_height: float;
+    rounding_radius:            float;
+    rounding_radius_large:      float;
+    rounding_radius_small:      float;
+    scrollbar_size:             float;
+};
+
+primary_font_info : Font_Info;
+console_font_info : Font_Info;
+font_data := *primary_font_info;
+
+font_console_size := 8;
+
 
 dont_scroll_this_frame := false;  // because e.g. a mouse wheel event has been handled
 
@@ -699,6 +819,9 @@ dont_ignore_next_window_resize := false;
 #load "session.jai";
 #load "meow_hash.jai";
 #load "user_messages.jai";
+#load "eye_tracking.jai";
+#load "console.jai";
+#load "threads.jai";
 
 #load "widgets/text_input.jai";
 #load "widgets/open_file_dialog.jai";
@@ -710,10 +833,12 @@ dont_ignore_next_window_resize := false;
 #load "widgets/commands.jai";
 #load "widgets/open_project.jai";
 
+#load "langs.jai";
 #load "langs/jai.jai";
 #load "langs/c.jai";
 #load "langs/csharp.jai";
 #load "langs/focus_config.jai";
+#load "langs/md.jai";
 #load "langs/glsl.jai";
 #load "langs/worklog.jai";
 
@@ -746,6 +871,9 @@ dont_ignore_next_window_resize := false;
 #import "Thread";
 #import "Compiler";
 #import "Machine_X64";
+strings :: #import "Strings";
+temp_strings :: #import "Strings_Alloc"(temp);
+new_strings :: #import "Strings_Alloc";
 
 // #if DEBUG {
 //     #import "Tracy";
@@ -780,6 +908,7 @@ DOUBLE_CLICK_TOLERANCE :: 2;    // how many pixels between the click locations a
 
 // Embed default fonts
 FONT         :: #run load_font("FiraCode-Retina.ttf");
+FONT_CONSOLE :: #run load_font("ponderosa.regular.ttf");
 FONT_UI      :: #run load_font("OpenSans-Regular.ttf");
 FONT_UI_BOLD :: #run load_font("OpenSans-SemiBold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
@@ -801,4 +930,4 @@ Embedded_Font :: struct {
     data: string;
 }
 
-DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
+prev_key_pressed : Input.Key_Code;

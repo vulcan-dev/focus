@@ -1,6 +1,23 @@
 #import "Windows";
 #import "Windows_Utf8";
 #import "Hash_Table";
+#import "Simp";
+
+
+is_key_held :: inline (vkey: u32) -> bool {
+    return table_find_pointer(*key_down_table, vkey) != null;
+}
+
+dump_held_keys :: () {
+    for key_down_table  print("%: %\n", it_index, it);
+}
+
+#scope_export
+
+// Procedure pointers that allow us to draw frames during resize/move events.
+draw_frame: () -> ();
+update_window_size: (s64, s64) -> ();
+simp: **Immediate_State;
 
 
 //
@@ -85,6 +102,8 @@ get_key_code :: (wParam: WPARAM) -> Key_Code {
         return xx #char "]";
     if wParam == VK_OEM_7
         return xx #char "'";
+    if wParam == VK_OEM_8
+        return xx #char "`";
 
     if wParam == VK_OEM_PLUS    return xx #char "+";
     if wParam == VK_OEM_MINUS   return xx #char "-";
@@ -97,6 +116,8 @@ get_key_code :: (wParam: WPARAM) -> Key_Code {
     }
     if wParam == VK_SNAPSHOT
         return PRINT_SCREEN;
+
+    print("Unknown keycode: %\n", wParam);
 
     return UNKNOWN;
 }
@@ -664,8 +685,6 @@ add_move_record :: (hwnd: HWND) {
 }
 
 
-
-
 #scope_file
 windows_ignore_setcursor_messages := false;
 
@@ -681,6 +700,7 @@ set_key_down_state :: (vkey : u32, is_down: bool) -> was_down:bool {
 
     return was_down;
 }
+
 
 maybe_send_vkey_event :: (vkey: u64, key_down: bool, repeat := false) {
     was_down := set_key_down_state(cast,trunc(u32) vkey, key_down);

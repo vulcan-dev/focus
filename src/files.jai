@@ -25,6 +25,21 @@ get_file_info_from_full_path :: (abs_path: string, proj_prefix_len := -1) -> Fil
     return info;
 }
 
+get_file_info_from_path_plus_filename :: (path: string, filename: string) -> File_Info {
+    full_path := tprint("%/%", path, filename);
+    return get_file_info_from_full_path(full_path);
+}
+
+file_info_for_adjacent_file :: (filename: string, current_file_info: File_Info) -> File_Info {
+    result := current_file_info;
+    result.full_path = sprint("%/%", current_file_info.path, filename);
+    _, _, extension, _ := path_decomp(result.full_path);
+
+    result.name = filename;
+    result.icon = get_file_icon(filename, extension);
+    return result;
+}
+
 get_file_icon :: (name: string, extension: string) -> File_Icon {
     icon := File_Icon.unknown;
 

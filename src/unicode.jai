@@ -42,6 +42,34 @@ Utf8_Char :: struct {
     count: s32;
 }
 
+opening_brackets :: u8.[#char "{", #char "(", #char "[", #char "<"];
+closing_brackets :: u8.[#char "}", #char ")", #char "]", #char ">"];
+
+is_bracket :: (c: u8) -> bracket: u8, matching_bracket: u8, is_opening_bracket: bool {
+    for opening_brackets  if c == it  return c, closing_brackets[it_index], true;
+    for closing_brackets  if c == it  return c, opening_brackets[it_index], false;
+    return 0, 0, false;
+}
+
+is_closing_bracket :: (utf8: Utf8_Char) -> bool {
+    if utf8.count != 1  return false;
+    return is_closing_bracket(utf8.bytes[0]);
+}
+
+is_closing_bracket :: (c: u8) -> bool {
+    #insert -> string {
+        builder : String_Builder;
+        append(*builder, "return ");
+        for * closing_brackets {
+            if it_index  append(*builder, " ||");
+            print_to_builder(*builder, " c == #char \"%\"", strings.char_as_string(it));
+        }
+        append(*builder, ";");
+        return builder_to_string(*builder);
+    }
+}
+
+
 advance_by_chars :: (s: string, num_chars: s64) -> string #must, remainder: s64 {
     result := s;
     col := 0;
@@ -66,7 +94,7 @@ take_first_n_chars :: (s: string, num_chars: s64) -> string #must {
 
 num_chars_in_string :: (s: string) -> s32 {
     num_chars: s32 = 0;
-    
+
     while s {
         byte := s[0];
         if byte != #char "\t" {
@@ -77,7 +105,7 @@ num_chars_in_string :: (s: string) -> s32 {
             num_chars += TAB_SIZE - num_chars % TAB_SIZE;
         }
     }
-    
+
     return num_chars;
 }
 
@@ -89,7 +117,7 @@ next_char_offset :: inline (bytes: [] u8, offset: s32) -> s32 {
 prev_char_offset :: (bytes: [] u8, offset: s32) -> s32, byte: u8 {
     new_offset := offset - 1;
     byte := bytes[new_offset];
-    while (byte & 0b1100_0000) == 0b1000_0000 { 
+    while (byte & 0b1100_0000) == 0b1000_0000 {
         new_offset -= 1;
         byte = bytes[new_offset];
     }
@@ -99,7 +127,7 @@ prev_char_offset :: (bytes: [] u8, offset: s32) -> s32, byte: u8 {
 unicode_prev_character :: (s: *u8) -> new_s: *u8, char: u32 {  // NOTE: assuming the memory is valid utf-8, no checks are done!
     t := s - 1;
     while (<<t & 0b1100_0000) == 0b1000_0000 t -= 1;  // rewind to the first byte of a utf-8 sequence (all non-first bytes start with 10)
-    
+
     char, _, result := character_utf8_to_utf32(t, s - t);
     return t, char;
 }

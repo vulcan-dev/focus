@@ -40,6 +40,24 @@ array_copy_tmp :: (array: [] $T) -> [] T {
     return dest;
 }
 
+array_count_starts_with :: (array: []string, needle: string) -> int {
+    count := 0;
+    for array  if starts_with(it, needle)  count += 1;
+    return count;
+}
+
+array_pop :: (array: *[..] $T) -> T {
+    assert(array.count > 0);
+    result := array.*[array.count - 1];
+    array.count -= 1;
+    return result;
+}
+
+array_peek ::  (array: [..] $T) -> T {
+    assert(array.count > 0);
+    return array[array.count - 1];
+}
+
 to_bytes :: (src: string) -> [] u8 {
     result: [] u8;
     result.data = src.data;
@@ -168,17 +186,17 @@ find_index_from_left_whole_word :: (s: string, substring: string, start_index :=
     return -1;
 }
 
-fuzzy_match :: (str: string, chars: [] string) -> score: s32, highlights: [] bool {
+fuzzy_match :: (str: string, needle_chars: [] string, needle: string) -> score: s32, highlights: [] bool {
     highlights := NewArray(str.count, bool, initialized = true);  // allocates from the pool
                                                                   // we "leak" if there's no match but that should be ok
-    if !chars return 0, highlights;
+    if !needle_chars return 0, highlights;
 
     MAX_CHARS :: 200;
 
     score: s32;
     pos := 0;
 
-    for char : chars {
+    for char : needle_chars {
         index := find_index_from_left_nocase(str, char, pos);
         if index < 0 { score = -1; break; }
         highlights[index] = true;
@@ -186,7 +204,16 @@ fuzzy_match :: (str: string, chars: [] string) -> score: s32, highlights: [] boo
         pos = index + char.count;
     }
 
-    if score < 0 then memset(highlights.data, 0, highlights.count);  // no match -> no highlighting
+    if score < 0 {
+        memset(highlights.data, 0, highlights.count);  // no match -> no highlighting
+    }
+    else if starts_with(str, needle) {
+        score += 1_000_000;
+        if str.count == needle.count
+            score += 5_000_000;
+        else if !is_alpha(str[needle.count])
+            score += 1_000_000;
+    }
 
     return score, highlights;
 }
@@ -202,17 +229,52 @@ bmh_prepare_skip_table :: (needle: string, case_sensitive: bool) -> [256] s32 {
     return skip_table;
 }
 
-bmh_find_index_from_left :: (s: string, needle: string, start_index := 0, skip_table: [] s32, $case_sensitive: bool) -> s64 {
+equal_nowhitespace :: (haystack: string, needle: string, $case_sensitive: bool) -> bool {
+    i := 0;
+    h := 0;
+
+    if needle && haystack && needle[0] != haystack[0]  return false;
+
+    while i < needle.count && h < haystack.count {
+        if needle[i] == #char " " {
+            i += 1;
+            while i < needle.count && needle[i] == #char " "  i += 1;
+            if i >= needle.count  return true;
+            n := needle[i];
+            while h < haystack.count && haystack[h] != n && haystack[h] != #char " "  h += 1;
+            if h >= haystack.count  return false;
+        }
+
+        while h < haystack.count && haystack[h] == #char " "  h += 1;
+        if h >= haystack.count  return false;
+
+        if needle[i] != haystack[h]  return false;
+        i += 1;
+        h += 1;
+    }
+
+    return i >= needle.count;
+}
+
+bmh_find_index_from_left :: (s: string, needle: string, start_index := 0, skip_table: [] s32, $case_sensitive: bool, ignore_whitespace: bool) -> s64 {
     i := start_index;
     last_i := s.count - needle.count;
+    if ignore_whitespace  skip_table[#char " "] = 1;
     while i <= last_i {
-        current := to_string(s.data + i, needle.count);
-        #if case_sensitive {
-            if current == needle return i;
+        if ignore_whitespace {
+            current := to_string(s.data + i, s.count - i);
+            if equal_nowhitespace(current, needle, case_sensitive)  return i;
             i += skip_table[s[i + needle.count - 1]];
-        } else {
-            if equal_nocase(current, needle) return i;
-            i += skip_table[to_lower(s[i + needle.count - 1])];
+        }
+        else {
+            current := to_string(s.data + i, needle.count);
+            #if case_sensitive {
+                if current == needle return i;
+                i += skip_table[s[i + needle.count - 1]];
+            } else {
+                if equal_nocase(current, needle) return i;
+                i += skip_table[to_lower(s[i + needle.count - 1])];
+            }
         }
     }
     return -1;
@@ -382,4 +444,47 @@ Char_Type :: enum {
     non_word;
     space;
     other;
+}
+
+
+// A simple stack that can be pushed/popped infinitely, but only records values for 0 <= index < count
+Stack :: struct(count: int, default_item: $type) {
+    items : [count] type;
+    index := -1;
+}
+
+init :: (stack: *Stack) {
+    stack.index = -1;
+}
+
+is_empty :: inline (stack: Stack) -> bool {
+    return stack.index < 0;
+}
+
+has_item :: inline (stack: Stack) -> bool {
+    return stack.index >= 0 && stack.index < stack.count;
+}
+
+pop :: (stack: *$T/Stack) -> item: T.type, ok: bool {
+    defer stack.index -= 1;
+    if has_item(stack)  return stack.items[stack.index], true;
+    else                return T.default_item, false;
+}
+
+peek :: (stack: $T/Stack) -> item: T.type, ok: bool {
+    if has_item(stack)  return stack.items[stack.index], true;
+    else                return T.default_item, false;
+}
+
+push :: (stack: *$T/Stack, item : T.type) {
+    stack.index += 1;
+    if has_item(stack)  stack.items[stack.index] = item;
+}
+
+push :: inline (stack: *$T/Stack) {
+    push(stack, T.default_item);
+}
+
+set :: (stack: *$T/Stack, item: T.type) {
+    if has_item(stack)  stack.items[stack.index] = item;
 }

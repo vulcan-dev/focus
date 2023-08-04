@@ -59,8 +59,11 @@ open_selected_project :: () {
             show_unsaved_buffers_dialog(.reload_workspace);
             should_reload_workspace = false;
         }
+        //if editors.layout == .None
+        //    show_open_file_dialog(.navigate);
     } else {
         add_user_error(tprint("Couldn't load project config for %", entry.name), dismiss_in_seconds = 10);
+        editors_open_file(get_project_config_path(entry.name));
     }
 }
 
@@ -75,7 +78,8 @@ refresh_entries :: () {
     scroll_y = 0;
     selected = 0;
 
-    filter_chars := decode_utf8_string_to_temp_char_substrings(to_string(input.text));
+    input_string := to_string(input.text);
+    filter_chars := decode_utf8_string_to_temp_char_substrings(input_string);
 
     Project_Config :: struct {
         name: string;
@@ -99,7 +103,7 @@ refresh_entries :: () {
     visit_files(projects_dir, recursive = true, *project_configs, visitor, visit_files = true, visit_directories = false);
 
     for project : project_configs {
-        score, highlights := fuzzy_match(project.name, filter_chars);
+        score, highlights := fuzzy_match(project.name, filter_chars, input_string);
         if score < 0 continue;
 
         entry := array_add(*filtered);

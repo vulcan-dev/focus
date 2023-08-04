@@ -74,13 +74,14 @@ refresh_entries :: () {
     scroll_y = 0;
     selected = 0;
 
-    filter_chars := decode_utf8_string_to_temp_char_substrings(to_string(input.text));
+    input_string := to_string(input.text);
+    filter_chars := decode_utf8_string_to_temp_char_substrings(input_string);
 
     for command : commands {
         if command.requires_layout == .Single && editors.layout == .None   continue;
         if command.requires_layout == .Double && editors.layout != .Double continue;
 
-        score, highlights := fuzzy_match(command.name, filter_chars);
+        score, highlights := fuzzy_match(command.name, filter_chars, input_string);
         if score < 0 continue;
 
         entry := array_add(*filtered);
@@ -139,6 +140,16 @@ commands := #run Command.[
     .{ .show_open_file_dialog_in_navigate_mode,             "Navigate To File",                   0, .None },
     .{ .show_open_file_dialog_in_navigate_mode_from_root,   "Navigate To File From Root",         0, .None },
 
+    .{ .build_debug,                                        "Build: Debug",                       0, .None },
+    .{ .build_debug_and_run,                                "Build: Debug and Run",               0, .None },
+    .{ .build_release,                                      "Build: Release ",                    0, .None },
+    .{ .build_release_and_run,                              "Build: Release and Run",             0, .None },
+    .{ .build_run_debug,                                    "Build: Run Debug",                   0, .None },
+    .{ .build_run_release,                                  "Build: Run Release",                 0, .None },
+
+    .{ .show_console,                                       "Show Console",                       0, .None },
+    .{ .hide_console,                                       "Hide Console",                       0, .None },
+
     .{ .switch_to_project,                                  "Switch To Project",                  0, .None },
     .{ .open_projects_directory,                            "Open Projects Directory",            0, .None },
     .{ .open_project_config,                                "Open Config For Project",            0, .None },
@@ -146,7 +157,6 @@ commands := #run Command.[
 
     .{ .create_new_file,                                    "Create New File",                    0, .None },
     .{ .create_new_file_on_the_side,                        "Create New File On The Side",        0, .Single },
-
     .{ .search_in_project,                                  "Search In Workspace",                0, .None },
 
     .{ .select_all,                                         "Select All",                         0, .Single },
@@ -183,6 +193,8 @@ commands := #run Command.[
 
     .{ .move_to_previous_editor_history,                    "Move To Previous Cursor Position",   0, .None },
     .{ .move_to_next_editor_history,                        "Move To Next Cursor Position",       0, .None },
+    .{ .move_to_previous_buffer,                            "Move To Previous Buffer",            0, .Single },
+    .{ .move_to_next_buffer,                                "Move To Next Buffer",                0, .Single },
 
     .{ .new_line_below_without_breaking,                    "New Line Below Without Breaking",    0, .Single },
     .{ .new_line_above_without_breaking,                    "New Line Above Without Breaking",    0, .Single },

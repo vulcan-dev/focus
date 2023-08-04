@@ -8,6 +8,7 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
 
     warnings: [..] string;
     warnings.allocator = temp;
+    reset_build_configs();
 
     while true {
         line, found := consume_next_line(*handler);
@@ -38,6 +39,12 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
         if success && error_msg then array_add(*warnings, error_msg);
     }
 
+    build_config_error := validate_build_configs();
+    if build_config_error {
+        error_msg := log_parser_error(handler, build_config_error);
+        return Parsed_Config.{}, false, error_msg, .[];
+    }
+
     // Mix the common key mappings into every keymap to support common actions
     array_extend(*parsed_config.keymap_editors,          parsed_config.keymap_common);
     array_extend(*parsed_config.keymap_open_file_dialog, parsed_config.keymap_common);
@@ -47,6 +54,10 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
 }
 
 keymap_map_key_string :: (key_string: string) -> u32 {
+    if key_string && is_digit(key_string[0]) {
+        value, success := parse_int(*key_string);
+        if success  return xx value;
+    }
     for STRING_TO_CODE_MAP {
         if equal_nocase(key_string, it.str) {
             return cast(u32) it.code;
@@ -78,6 +89,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "background_highlight";            return *config.colors.BACKGROUND_HIGHLIGHT;
         case "background_light";                return *config.colors.BACKGROUND_LIGHT;
         case "background_bright";               return *config.colors.BACKGROUND_BRIGHT;
+        case "background_region";               return *config.colors.BACKGROUND_REGION;
         case "selection_active";                return *config.colors.SELECTION_ACTIVE;
         case "selection_inactive";              return *config.colors.SELECTION_INACTIVE;
         case "selection_highlight";             return *config.colors.SELECTION_HIGHLIGHT;
@@ -97,6 +109,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "shadow_dark";                     return *config.colors.SHADOW_DARK;
         case "shadow_transparent";              return *config.colors.SHADOW_TRANSPARENT;
         case "text_input_label";                return *config.colors.TEXT_INPUT_LABEL;
+        case "motif";                           return *config.colors.MOTIF;
 
         case "ui_default";                      return *config.colors.UI_DEFAULT;
         case "ui_dim";                          return *config.colors.UI_DIM;
@@ -118,6 +131,9 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "code_highlight";                  return *config.colors.CODE_HIGHLIGHT;
         case "code_error";                      return *config.colors.CODE_ERROR;
         case "code_keyword";                    return *config.colors.CODE_KEYWORD;
+        case "code_jump";                       return *config.colors.CODE_JUMP;
+        case "code_directive";                  return *config.colors.CODE_DIRECTIVE;
+        case "code_format_item";                return *config.colors.CODE_FORMAT_ITEM;
     }
 
     return xx 0;
@@ -245,7 +261,24 @@ switch_top_section :: (using parser: *Config_Parser, line: string) -> error: boo
 parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success: bool, error_msg: string /* temp */ {
     if begins_with(line, "[") {
         for WORKSPACE_SUBSECTIONS {
-            if line == it { workspace_subsection = xx it_index; return true, ""; }
+            if line == it {
+                workspace_subsection = xx it_index;
+                is_build_section := true;
+                if workspace_subsection == {
+                    case .build_debug;            build_mode = .DEBUG;
+                    case .build_debug_and_run;    build_mode = .DEBUG_AND_RUN;
+                    case .build_release;          build_mode = .RELEASE;
+                    case .build_release_and_run;  build_mode = .RELEASE_AND_RUN;
+                    case .build_run_debug;        build_mode = .RUN_DEBUG;
+                    case .build_run_release;      build_mode = .RUN_RELEASE;
+                    case; is_build_section = false;
+                }
+                if is_build_section {
+                    config := *build_configs[build_mode];
+                    config.enabled = true;
+                }
+                return true, "";
+            }
         }
         error_msg := log_parser_error(handler, "Unknown workspace subsection '%'.\nAvailable options are: %.", line, join(..WORKSPACE_SUBSECTIONS, ", ", allocator = temp));
         return false, error_msg;
@@ -288,6 +321,36 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
                     array_add(*parsed_config.ignore_file_extensions, trim_left(it, "\t "));
                 }
             }
+        case .build_debug; #through;
+        case .build_debug_and_run; #through;
+        case .build_release; #through;
+        case .build_release_and_run; #through;
+        case .build_run_debug; #through;
+        case .build_run_release;
+            if !strings.contains(line, #char ":") {
+                error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
+                return false, error_msg;
+            }
+            key, value := strings.split_into_two(line, #char ":");
+            key = strings.trim(key);
+            value = strings.trim(value);
+            config := *build_configs[build_mode];
+            if key == {
+                case "name";
+                config.name = copy_string(value, console_allocator);
+
+                case "dir";
+                // working_directory in task runner requires backslashes
+                config.working_directory = new_strings.replace(value, "/", "\\", allocator=console_allocator);
+
+                case "command";
+                array_add(*config.commands, copy_string(value, console_allocator));
+
+                case;
+                error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
+                return false, error_msg;
+            }
+
     }
     return true, "";
 }
@@ -342,6 +405,8 @@ parse_style_line :: (using parser: *Config_Parser, line: string) -> success: boo
     return true, "";
 }
 
+#scope_export
+
 color_to_hex :: (using color: Color) -> string /* temp  */ {
     r_u8 := cast(u8)(255 * r);
     g_u8 := cast(u8)(255 * g);
@@ -379,6 +444,8 @@ hex_to_color :: (src_hex: string) -> Color, success: bool {
     return c, c.r >= 0 && c.g >= 0 && c.b >= 0 && c.a >= 0;
 }
 
+#scope_file
+
 parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: bool, error_msg: string /* temp */ {
     setting_name, setting_value := break_by_spaces(line);
     setting_name = trim_right(setting_name, ":");
@@ -394,7 +461,7 @@ parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: 
             print_to_builder(*b, "    case \"%\";\n", setting.name);
             if setting.type.type == {
                 case .BOOL;
-                    code := #string END
+                    code := #string __jai
                         bool_val, success := parse_bool(*value);
                         if success {
                             parsed_config.settings.%1 = bool_val;
@@ -402,11 +469,11 @@ parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: 
                             error_msg := log_parser_error(handler, "Couldn't parse '%1' - expected 'true' or 'false', got '%%'", setting_value);
                             return false, error_msg;
                         }
-                    END;
+                    __jai;
                     print_to_builder(*b, code, setting.name);
 
                 case .INTEGER;
-                    code := #string END
+                    code := #string __jai
                         int_val, success := parse_int(*value);
                         if success {
                             parsed_config.settings.%1 = int_val;
@@ -414,16 +481,16 @@ parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: 
                             error_msg := log_parser_error(handler, "Couldn't parse '%1' - expected a valid integer, got '%%'", setting_value);
                             return false, error_msg;
                         }
-                    END;
+                    __jai;
                     print_to_builder(*b, code, setting.name);
             }
         }
 
-        code := #string END
+        code := #string __jai
             case;
                 error_msg := log_parser_error(handler, "Unrecognized setting '%'.", setting_name);
                 return false, error_msg;
-        END;
+        __jai;
         append(*b, code);
 
         append(*b, "}\n");
@@ -614,6 +681,10 @@ Parsed_Color :: struct {
     color: Color;
 }
 
+workspace_subsection_from_build_mode :: (mode: Build_Mode) -> string {
+    return Config_Parser.WORKSPACE_SUBSECTIONS[mode + 4]; // @Hack
+}
+
 #scope_file
 
 Config_Parser :: struct {
@@ -643,6 +714,12 @@ Config_Parser :: struct {
         ignore_dirs;
         allow_file_extensions;
         ignore_file_extensions;
+        build_debug;
+        build_release;
+        build_debug_and_run;
+        build_release_and_run;
+        build_run_debug;
+        build_run_release;
     };
     WORKSPACE_SUBSECTIONS :: string.[
         // Must match the order of the enum above
@@ -650,7 +727,14 @@ Config_Parser :: struct {
         "[ignore dirs]",
         "[allow file extensions]",
         "[ignore file extensions]",
+        "[build debug]",
+        "[build release]",
+        "[build debug and run]",
+        "[build release and run]",
+        "[build run debug]",
+        "[build run release]",
     ];
+    build_mode : Build_Mode;
 
     style_subsection: enum {
         user_interface;

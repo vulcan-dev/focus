@@ -52,6 +52,7 @@ tab_size:                               4
 line_height_scale_percent:              120
 max_editor_width:                       -1
 editor_history_size:                    1024
+scroll_to_cursor_line_offset            1
 
 
 [[keymap]]
@@ -293,4 +294,6 @@ code_string:                    D4BC7DFF
 code_value:                     D699B5FF
 code_highlight:                 D89B75FF
 code_error:                     FF0000FF
-code_keyword:                   E67D74FF
+code_keyword:                   BFC9DBFF
+code_jump:                      E67D74FF
+code_directive:                 7DE674FF
