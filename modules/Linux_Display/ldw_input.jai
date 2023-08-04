@@ -29,15 +29,15 @@ keyboard_listenter :: wl_keyboard_listener.{
     },
 
     enter = (data: *void, self: *wl_keyboard, serial: u32, surface: *wl_surface, keys: *wl_array) -> void #c_call {
-        input_application_has_focus = true;
+        Input.input_application_has_focus = true;
     },
 
     leave = (data: *void, self: *wl_keyboard, serial: u32, surface: *wl_surface) -> void #c_call {
         d : *WLDisplay = wl_proxy.get_user_data(self);
-        input_application_has_focus = false;
+        Input.input_application_has_focus = false;
         ctx: Context;
         push_context ctx {
-            wl_timer_stop(d.key_repeat_timer);
+            timer_stop(d.key_repeat_timer);
         }
     },
 
@@ -50,10 +50,10 @@ keyboard_listenter :: wl_keyboard_listener.{
             if state == wl_keyboard.key_state_pressed {
                 d.key_to_repeat = key;
                 rate := 1000 / d.key_repeat_rate;
-                wl_timer_start(d.key_repeat_timer, d.key_repeat_delay, rate);
+                timer_start(d.key_repeat_timer, d.key_repeat_delay, rate);
             } else {
                 d.key_to_repeat = 0;
-                wl_timer_stop(d.key_repeat_timer);
+                timer_stop(d.key_repeat_timer);
             }
 
             handle_key_event(d, serial, key, state);
@@ -77,12 +77,12 @@ keyboard_listenter :: wl_keyboard_listener.{
     }
 };
 
-wl_key_repeat_cb :: (timer: *WLTimer) {
-    d := timer.display;
+wl_key_repeat_cb :: (tid: Timer, user_data: *void) {
+    d : *WLDisplay = user_data;
     key := d.key_to_repeat;
 
     if !key {
-        wl_timer_stop(d.key_repeat_timer);
+        timer_stop(d.key_repeat_timer);
         return;
     }
 
@@ -95,7 +95,7 @@ handle_key_event :: (d: *WLDisplay, serial: u32, key: u32, state: u32) {
     keycode: xkb_keycode_t = key + 8;
     keysym := xkb_state_key_get_one_sym(d.kb_state, keycode);
 
-    event: Event;
+    event: Input.Event;
     event.type = .KEYBOARD;
     event.shift_pressed    = xkb_state_mod_index_is_active(d.kb_state, d.mod_idx_shift, .XKB_STATE_MODS_EFFECTIVE) == 1;
     event.ctrl_pressed     = xkb_state_mod_index_is_active(d.kb_state, d.mod_idx_ctrl,  .XKB_STATE_MODS_EFFECTIVE) == 1;
@@ -117,18 +117,18 @@ handle_key_event :: (d: *WLDisplay, serial: u32, key: u32, state: u32) {
         event.key_pressed = 1;
         event.key_code = x11_translate_key_code(keysym);
         event.text_input_count = xx is_printable;
-        input_button_states[event.key_code] = (Key_Current_State.START | Key_Current_State.DOWN);
+        input_button_states[event.key_code] = (Input.Key_Current_State.START | Input.Key_Current_State.DOWN);
         if event.ctrl_pressed d.input_serial = serial;
     } else {
         event.key_pressed = 0;
         event.key_code = x11_translate_key_code(keysym);
-        input_button_states[event.key_code] = Key_Current_State.END;
+        input_button_states[event.key_code] = Input.Key_Current_State.END;
     }
 
     array_add(*events_this_frame, event);
 
     if event.key_pressed && is_printable {
-        text_event: Event;
+        text_event: Input.Event;
         text_event.type = .TEXT_INPUT;
         text_event.key_pressed = 1;
         text_event.key_code = x11_translate_key_code(keysym);
@@ -180,7 +180,7 @@ pointer_listener :: wl_pointer_listener.{
     button = (data: *void, self: *wl_pointer, serial: u32, time: u32, button: u32, state: u32) -> void #c_call {
         d : *WLDisplay = wl_proxy.get_user_data(self);
 
-        event: Event;
+        event: Input.Event;
         event.type = .KEYBOARD;
         if button == {
             case BTN_LEFT;   event.key_code = .MOUSE_BUTTON_LEFT;
@@ -189,10 +189,10 @@ pointer_listener :: wl_pointer_listener.{
         }
         if state == wl_pointer.button_state_pressed {
             event.key_pressed = 1;
-            input_button_states[event.key_code] = (Key_Current_State.START | Key_Current_State.DOWN);
+            input_button_states[event.key_code] = (Input.Key_Current_State.START | Input.Key_Current_State.DOWN);
         } else {
             event.key_pressed = 0;
-            input_button_states[event.key_code] = Key_Current_State.END;
+            input_button_states[event.key_code] = Input.Key_Current_State.END;
         }
 
         ctx: Context;
@@ -218,12 +218,12 @@ pointer_listener :: wl_pointer_listener.{
         push_context ctx {
             d: *WLDisplay = wl_proxy.get_user_data(self);
             if d.pointer_axis_accumulator[0] {
-                event: Event;
+                event: Input.Event;
                 event.type = .MOUSE_WHEEL;
                 event.typical_wheel_delta = WHEEL_DELTA;
                 event.wheel_delta = d.pointer_axis_accumulator[0];
                 array_add(*events_this_frame, event);
-                mouse_delta_z += event.wheel_delta;
+                Input.mouse_delta_z += event.wheel_delta;
 
                 d.pointer_axis_accumulator[0] = 0;
             }
@@ -252,52 +252,69 @@ pointer_listener :: wl_pointer_listener.{
     },
 };
 
-wl_update_window_events :: (display: *WLDisplay) {
-    display_poll :: (display: *WLDisplay) -> s32 {
-        wlfd := wl_display.get_fd(display.handle);
+wl_display_poll :: (display: *WLDisplay, timeout: s32) -> wayland_events := false, timer_events := false {
+    wlfd := wl_display.get_fd(display.handle);
 
-        pfd: [2]pollfd;
-        pfd[0].fd = wlfd;
-        pfd[0].events = POLLIN;
-        pfd[1].fd = display.epfd;
-        pfd[1].events = POLLIN;
+    pfd: [2]pollfd;
+    pfd[0].fd = wlfd;
+    pfd[0].events = POLLIN;
+    pfd[1].fd = timers_epfd;
+    pfd[1].events = POLLIN;
 
-        ret := poll(pfd.data, 2, 5);
-        if ret <= 0 return ret;
+    ret := poll(pfd.data, 2, timeout);
+    if ret <= 0 return;
 
-        has_wayland_events := false;
-        for 0..1 {
-            if !pfd[it].revents {
-                continue;
-            }
-            if pfd[it].fd == wlfd {
-                has_wayland_events = true;
-                continue;
-            }
-
-            assert(pfd[it].fd == display.epfd);
-            ev: epoll_event;
-            count := epoll_wait(display.epfd, *ev, 1, -1);
-            assert(count == 1);
-
-            if wl_tick_timers(display, ev.data.fd) continue;
+    has_wayland_events := false;
+    has_timer_events := false;
+    for 0..1 {
+        if !pfd[it].revents {
+            continue;
+        }
+        if pfd[it].fd == wlfd {
+            has_wayland_events = true;
+            assert(pfd[it].revents == POLLIN);
+            continue;
         }
 
-        return ifx has_wayland_events then cast(s32) 1 else 0;
+        assert(pfd[it].fd == timers_epfd);
+        timers_tick();
+        has_timer_events = true;
     }
 
-    wl_display.flush(display.handle);
-    if wl_display.prepare_read(display.handle) == 0 {
-        err := display_poll(display);
-        if err > 0 {
-            wl_display.read_events(display.handle);
-            wl_display.dispatch_pending(display.handle);
-        } else {
-            wl_display.cancel_read(display.handle);
-        }
+    return has_wayland_events, has_timer_events;
+}
+
+wl_event_loop_step :: (display: *WLDisplay, timeout: s32) -> bool {
+    dpy := display.handle;
+    dispatch_count : s32 = 0;
+
+    while wl_display.prepare_read(dpy) != 0
+        dispatch_count += wl_display.dispatch_pending(dpy);
+
+    if wl_display.flush(dpy) < 0 && errno() != EAGAIN {
+        wl_display.cancel_read(dpy);
+        return true;
+    }
+
+    wlev, tev := wl_display_poll(display, timeout);
+    if wlev {
+        wl_display.read_events(dpy);
+        dispatch_count += wl_display.dispatch_pending(dpy);
     } else {
-        wl_display.dispatch_pending(display.handle);
+        wl_display.cancel_read(dpy);
     }
+
+    return (wlev && ((dispatch_count > 0) || (events_this_frame.count > 0))) || tev;
+}
+
+wl_wait_for_events :: (display: *WLDisplay) {
+    while true {
+        if wl_event_loop_step(display, -1) return;
+    }
+}
+
+wl_update_window_events :: (display: *WLDisplay) {
+    wl_event_loop_step(display, 0);
 }
 
 wl_get_mouse_pointer_position :: (win: *WLWindow, right_handed: bool) -> x: int, y: int, success: bool {

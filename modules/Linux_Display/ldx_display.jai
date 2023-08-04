@@ -1,5 +1,6 @@
 X11Display :: struct {
     handle: *Display;
+    file_descriptor: s32;
 
     glx_ctx: GLXContext;
     glx_cnf: GLXFBConfig;
@@ -74,9 +75,12 @@ x11_init_display :: (display: LDDisplay) -> bool {
         }
     }
 
+    file_descriptor := XConnectionNumber(x_global_display);
+
     set(display, X11Display.{
         handle = x_global_display,
         im = im,
+        file_descriptor = file_descriptor,
     });
     return ifx x_global_display then true else false;
 }
@@ -398,7 +402,7 @@ x11_get_dpi_scaling_factor :: (w: *X11Window) -> float {
 x11_generate_resize :: (w: *X11Window) {
     xwa: XWindowAttributes;
     XGetWindowAttributes(w.display.handle, w.handle, *xwa);
-    add_resize_record(w.wrapper, xwa.width, xwa.height);
+    Input.add_resize_record(w.wrapper, xwa.width, xwa.height);
 }
 
 x11_set_fixed_scaling :: (d: *X11Display, factor: float) {

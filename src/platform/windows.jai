@@ -15,9 +15,6 @@ platform_copy_config :: (src: *Platform_Config, dst: *Platform_Config) {
 
 platform_setup :: () {
     if timeBeginPeriod(1) != TIMERR_NOERROR then log_error("Couldn't set minimum timer resolution");
-    Input.draw_frame = draw_frame;
-    Input.update_window_size = update_window_size;
-    Input.simp = *context.simp;
 }
 
 platform_data_dir :: () -> string {
@@ -127,6 +124,12 @@ platform_enumerate_logical_drives :: () -> [] string {
 platform_get_save_file_name :: (name := "") -> string /* temp */, success: bool {
     buffer: [512] u16;
 
+    if name && name != "<new file>" {
+        // Get the name to populate it in the filename box (convenient if we're resaving a deleted file)
+        wide_name, _, length := utf8_to_wide(name); // @Todo: handle error here
+        memcpy(buffer.data, wide_name, min(buffer.count, length));
+    }
+
     ofn: OPENFILENAMEW;
     ofn.lStructSize = size_of(OPENFILENAMEW);
     ofn.hwndOwner   = window;
@@ -142,7 +145,7 @@ platform_get_save_file_name :: (name := "") -> string /* temp */, success: bool 
         }
     }
 
-    open_success := GetOpenFileNameW(*ofn);
+    open_success := GetSaveFileNameW(*ofn);
 
     if open_success {
         file_path, success := wide_to_utf8(buffer.data);

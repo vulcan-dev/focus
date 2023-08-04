@@ -149,7 +149,9 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .close_left_editor;                close_editor(.left);
         case .close_right_editor;               close_editor(.right);
         case .save;                             save_buffer(editor, buffer);
+        case .save_as;                          save_buffer(editor, buffer, save_new_file = true);
         case .save_all;                         save_all   (editor, buffer);
+        case .delete_current_file;              show_delete_file_dialog(editor);
         case .switch_to_left_editor;            switch_to_editor(.left);
         case .switch_to_right_editor;           switch_to_editor(.right);
         case .switch_to_other_editor;           switch_to_editor(.other);
@@ -1373,19 +1375,58 @@ select_word_or_create_another_cursor :: (using editor: *Editor, buffer: Buffer) 
     return editor.search_whole_words;
 }
 
-save_buffer :: (editor: *Editor, buffer: *Buffer) {
+save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
     new_edit_group(buffer, editor);
 
     if buffer.has_file {
-        maybe_mark_buffer_as_deleted(editor.buffer_id);  // check in case we missed that it's deleted
+        maybe_mark_buffer_as_deleted(editor.buffer_id);   // check in case we missed that it's deleted
         session_notify_modified_buffer(editor.buffer_id);
     }
-    save_buffer_to_disk(buffer, editor.buffer_id);
+
+// @cleanup: revisit and fix code duplication
+#if OS != .WINDOWS {
+    if !buffer.readonly {
+        if save_new_file {
+            show_save_file_dialog(buffer, editor.buffer_id, save_new_file);
+        } else {
+            if !buffer.has_file {
+                show_save_file_dialog(buffer, editor.buffer_id, save_new_file);
+            } else {
+                using buffer;
+
+                if config.settings.strip_trailing_whitespace_on_save then strip_trailing_whitespace(buffer, editor.buffer_id);
+
+                success := write_entire_file(file.full_path, to_string(bytes));
+                if success {
+                    modified = false;
+                    modified_on_disk = false;
+                    deleted = false;
+
+                    meow_hash = calculate_meow_hash(bytes);
+
+                    error_when_saving = false;
+                    crlf = false;
+                } else {
+                    error_when_saving = true;
+                }
+                remember_last_modtime_and_size(buffer);
+                update_window_title(open_editors[editors.active].buffer_id);
+            }
+        }
+    }
+} else {
+    if save_new_file then save_buffer_to_new_file_on_disk(buffer, editor.buffer_id);
+    else                  save_buffer_to_disk(buffer, editor.buffer_id);
+}
 }
 
 save_all :: (editor: *Editor, buffer: *Buffer) {
     new_edit_group(buffer, editor);
-    save_all_raw();
+
+    for * b, b_id : open_buffers {
+        if !b.modified continue;
+        save_buffer_to_disk(b, b_id);
+    }
 }
 
 switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := false) {

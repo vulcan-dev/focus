@@ -100,11 +100,13 @@ draw_frame :: () {
 
     if active_global_widget == {
         case .open_file_dialog;         draw_open_file_dialog();
+        case .save_file_dialog;         draw_save_file_dialog();
+        case .delete_file_dialog;       draw_delete_file_dialog();
         case .finder;                   draw_finder();
         case .go_to_line_dialog;        draw_go_to_line_dialog(active_pane_rect);
+        case .open_project_dialog;      draw_open_project_dialog();
         case .unsaved_buffers_dialog;   draw_unsaved_buffers_dialog();
         case .commands_dialog;          draw_commands_dialog();
-        case .open_project_dialog;      draw_open_project_dialog();
     }
 
     draw_user_messages(screen, footer_height);
@@ -1505,6 +1507,45 @@ draw_splitter :: (splitter_rect: Rect, split_x: float, ui_id: Ui_Id) {
     draw_rect(rect, color);
 }
 
+draw_save_file_dialog :: () {
+    using save_file_dialog;
+
+    ui_id := Ui_Id.save_file_dialog;
+
+    if ui.active != .none && ui.active != ui_id && !is_child(ui.active, ui_id) {
+        // Close the dialog on clicks elsewhere
+        hide_save_file_dialog();
+        return;
+    }
+
+    margin  := floor(12 * dpi_scale);
+    padding := floor( 4 * dpi_scale);
+    input_rect_height := font_ui_line_height + 2 * padding + 2 * margin + 2;
+    entry_height := font_ui_line_height + padding * 2;
+
+    // Figure out the dialog box size
+    box_rect: Rect = ---;
+    {
+        if width_percentage != width_anim.target {
+            width_percentage = get_animation_value(width_anim);
+            redraw_requested = true;
+        }
+        width  := floor(clamp(screen.w * width_percentage, 400 * dpi_scale, 2000 * dpi_scale));
+        height := floor(clamp(input_rect_height + entry_height * 1/*entries.filtered.count*/ + padding, 0, screen.h / 1.5));
+        x := floor((screen.w - width) / 2);
+        y := floor(clamp(100 * dpi_scale, 0, (screen.h - height) / 2));
+        box_rect = make_rect(x, screen.h - height - y, width, height);
+        if !is_valid(box_rect) return;
+    }
+    draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
+
+    // Draw the filter input
+    input_rect, files_rect := cut_top(box_rect, input_rect_height);
+    input_rect = shrink(input_rect, margin);
+    input_id := get_ui_id_from_loc(parent_id = ui_id);
+    draw_text_input(*save_file_dialog.input, input_rect, ui_id = input_id, active = true, label = "Path");
+}
+
 draw_open_file_dialog :: () {
     using open_file_dialog;
     using font_data;
@@ -1937,6 +1978,93 @@ draw_commands_dialog :: () {
     }
 }
 
+draw_delete_file_dialog :: () {
+    ui_id := Ui_Id.delete_file_dialog;
+
+    margin  := floor(12 * dpi_scale);
+    padding := floor( 4 * dpi_scale);
+    entry_height  := font_ui_line_height + padding * 2;
+    button_height := font_ui_medium_line_height + 2 * padding;
+    header_height := font_ui_medium_line_height + 2 * margin + 4 * dpi_scale;
+
+    box_rect := Rect.{
+        w = floor(clamp(screen.w * 0.3, 600 * dpi_scale, 1500 * dpi_scale)),
+        h = header_height + (entry_height + margin / 2) + margin + padding + button_height + margin,
+    };
+    box_rect.x = floor((screen.w - box_rect.w) / 2);
+    box_rect.y = screen.h - box_rect.h - floor(clamp(100 * dpi_scale, 0, (screen.h - box_rect.h) / 2));
+
+    maybe_set_hot_or_active(ui_id, box_rect, .NORMAL);
+
+    draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT);
+
+    header_rect, buffers_rect := cut_top(box_rect, header_height);
+    buffers_rect = shrink(buffers_rect, margin);
+
+     // Header
+    {
+        push_scissor(header_rect);
+        defer pop_scissor();
+
+        draw_rounded_rect_with_corners(header_rect, Colors.BACKGROUND_BRIGHT, tl = .in, tr = .in, br = .none, bl = .none);
+
+        pen_x := cast(s32) (header_rect.x + 2 * margin);
+        pen_y := cast(s32) (header_rect.y + (header_rect.h - font_ui_medium.character_height) / 2 + 2);
+        header_text := "Are you sure you want to delete this file?";
+        Simp.draw_text(font_ui_medium, pen_x, pen_y, header_text, Colors.UI_DEFAULT);
+
+        hr := cut_bottom(header_rect, 1);
+        draw_rect(hr, Colors.BACKGROUND_DARK);
+    }
+
+    // File to delete
+    {
+        push_scissor(buffers_rect);
+        defer pop_scissor();
+
+        // Not locking here because we're not modifying the buffer
+        buffer_id := get_buffer_id_to_delete();
+        buffer    := *open_buffers[buffer_id];
+
+        entry_rect := cut_top(buffers_rect, entry_height);
+        {
+            push_scissor(entry_rect);
+            defer pop_scissor();
+
+            pen := Vector2.{
+                x = entry_rect.x + margin,
+                y = entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+            };
+            width: float;
+
+            width, _ = draw_file_info(buffer, width, padding, pen);
+        }
+
+        entry_rect.y -= entry_rect.h + margin / 2;
+    }
+
+    // Buttons
+    {
+        buttons_row_rect := cut_bottom(buffers_rect, button_height);
+
+        cancel_button, delete_button: Rect;
+
+        activated, width := draw_button(font_ui, "Cancel", Colors.UI_NEUTRAL, Colors.UI_DEFAULT, ui_id, buttons_row_rect, .right, margin / 2, margin);
+        if activated close_delete_file_dialog();
+
+        buttons_row_rect.w -= width + margin;
+
+        activated, width = draw_button(font_ui, "Delete", Colors.UI_ERROR, Colors.UI_DEFAULT, ui_id, buttons_row_rect, .right, margin / 2, margin);
+        if activated delete_buffer_file_and_update_editor();
+    }
+
+    if ui.active != .none && ui.active != ui_id && !is_child(ui.active, ui_id) {
+        // Close the dialog on clicks elsewhere
+        close_delete_file_dialog();
+        return;
+    }
+}
+
 draw_open_project_dialog :: () {
     using open_project_dialog;
     using font_data;
@@ -2156,7 +2284,7 @@ draw_unsaved_buffers_dialog :: () {
                 };
                 width: float;
 
-                width, pen = draw_file_info(buffer, width, padding, pen);
+                width, _ = draw_file_info(buffer, width, padding, pen);
             }
 
             entry_rect.y -= entry_rect.h + margin / 2;
@@ -2362,7 +2490,11 @@ draw_finder :: () {
                 if mouse.left.just_pressed then selected_by_mouse = entry_index;
                 if selected_by_mouse == -1 then draw_rect(entry_rect, Colors.LIST_CURSOR_LITE);
                 placement := ifx ctrl_or_cmd_pressed() then Editor_Placement.on_the_side else .in_place;
-                if selected_by_mouse == entry_index && mouse.left.just_released then finder_open_selected_result(entry_index, placement);
+                if selected_by_mouse == entry_index && mouse.left.just_released {
+                    finder_open_selected_result(entry_index, placement);
+                    redraw_requested = true;
+                    break;  // don't finish drawing entries because we're opening selected result
+                }
             }
             if selected_by_mouse == entry_index then draw_rect(entry_rect, Colors.LIST_CURSOR);
             if entry_index == selected then draw_rect(entry_rect, Colors.LIST_CURSOR);
@@ -3060,6 +3192,8 @@ Ui_Id :: enum s64 {
     commands_dialog     :: -11;
     open_project_dialog :: -12;
     editor_floating     :: -13;
+    delete_file_dialog  :: -13;
+    save_file_dialog    :: -14;
 
     // The rest will be derived from loc
 }

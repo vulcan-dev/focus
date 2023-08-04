@@ -1,3 +1,5 @@
+#load "timers.jai";
+
 Saved_Window_Info :: struct {}
 
 LDDisplay :: *_Display;
@@ -5,9 +7,6 @@ global_display : LDDisplay : *_global_display;
 
 LDWindow  :: *_Window;
 INVALID_WINDOW : LDWindow : null;
-
-Timer :: *_Timer;
-Timer_Cb :: #type (timer: Timer);
 
 BACKEND_CHOICE :: enum {
     PREFER_BEST_USER_EXPERIENCE;
@@ -24,6 +23,7 @@ ACTIVE_BACKEND :: enum {
 }
 
 init :: (backend: BACKEND_CHOICE, app_id := "com.jai.application") -> bool {
+    timers_init();
     if global_display.tag == X11Display || global_display.tag == WLDisplay return true;
     if global_app_id free(global_app_id);
     global_app_id = copy_string(app_id);
@@ -256,7 +256,7 @@ set_fixed_scaling :: (factor: float) {
 /*
  * Input functions
  */
-translate_key_code :: (display: LDDisplay, key: u64) -> Key_Code {
+translate_key_code :: (display: LDDisplay, key: u64) -> Input.Key_Code {
     if display.tag == {
         case X11Display; return x11_translate_key_code(key);
         case WLDisplay;
@@ -264,14 +264,34 @@ translate_key_code :: (display: LDDisplay, key: u64) -> Key_Code {
     return .UNKNOWN;
 }
 
-translate_key_code :: (key: u64) -> Key_Code {
+translate_key_code :: (key: u64) -> Input.Key_Code {
     return translate_key_code(global_display, key);
+}
+
+wait_for_events :: () {
+    if global_display.tag == {
+        case X11Display; x11_wait_for_events(isa(global_display, X11Display));
+        case WLDisplay; wl_wait_for_events(isa(global_display, WLDisplay));
+    }
 }
 
 update_window_events :: () {
     if global_display.tag == {
         case X11Display; x11_update_window_events(isa(global_display, X11Display));
         case WLDisplay; wl_update_window_events(isa(global_display, WLDisplay));
+    }
+    /*
+     * On Wayland, the event loop can push events into `events_this_frame` during the
+     * "wait for events" phase (`wl_display.dispatch_pending()` invokes event callbacks).
+     * Because of this we need to "double buffer" here so that the `Input` module doesn't
+     * discard said events during the "update" phase.
+     */
+    if events_this_frame.count > 0 {
+        array_resize(*Input.events_this_frame, events_this_frame.count);
+        memcpy(Input.events_this_frame.data, events_this_frame.data, events_this_frame.count * size_of(Input.Event));
+        array_reset_keeping_memory(*events_this_frame);
+
+        memcpy(Input.input_button_states.data, input_button_states.data, input_button_states.count * size_of(Input.Key_Current_State));
     }
 }
 
@@ -297,74 +317,6 @@ find_font :: (name: string, allocator := temp) -> bool, string {
     return ok, path;
 }
 
-// Timers
-timer_create :: (cb: Timer_Cb, user_data: *void = null, initial_tick: u32 = 0, repeat: u32 = 0) -> Timer {
-    pthread_mutex_lock(*timers_mutex);
-    defer pthread_mutex_unlock(*timers_mutex);
-
-    ret: Timer;
-    ret_id: s32;
-    for * t : global_timers {
-        if t.id == null {
-            ret = t;
-            ret_id = xx it_index;
-            break;
-        }
-    }
-
-    if !ret {
-        ret = array_add(*global_timers);
-        ret_id = xx (global_timers.count - 1);
-    }
-
-    sev: sigevent;
-    sev.sigev_notify = SIGEV_THREAD;
-    sev.sigev_value.sival_int = ret_id;
-    sev.sigev_notify_function = timer_callback;
-
-    timer_create(.CLOCK_MONOTONIC, *sev, *ret.id);
-    if !ret.id {
-        timer_destroy(ret);
-        return null;
-    }
-
-    ret.cb = cb;
-    ret.user_data = user_data;
-
-    if initial_tick || repeat timer_start(ret, initial_tick, repeat);
-
-    return ret;
-}
-
-timer_start :: (timer: Timer, initial_tick: u32, repeat: u32 = 0) {
-    assert(initial_tick != 0 || repeat != 0);
-
-    spec: itimerspec;
-    spec.it_value.tv_nsec = initial_tick * 1_000_000;
-    spec.it_value.tv_sec  = spec.it_value.tv_nsec / 1_000_000_000;
-    spec.it_value.tv_nsec = spec.it_value.tv_nsec % 1_000_000_000;
-    if repeat {
-        spec.it_interval.tv_nsec = repeat * 1_000_000;
-        spec.it_interval.tv_sec  = spec.it_interval.tv_nsec / 1_000_000_000;
-        spec.it_interval.tv_nsec = spec.it_interval.tv_nsec % 1_000_000_000;
-    }
-    timer_settime(timer.id, 0, *spec, null);
-}
-
-timer_stop :: (timer: Timer) {
-    spec: itimerspec;
-    timer_settime(timer.id, 0, *spec, null);
-}
-
-timer_destroy :: (timer: Timer) {
-    pthread_mutex_lock(*timers_mutex);
-    defer pthread_mutex_unlock(*timers_mutex);
-
-    assert(timer >= global_timers.data && timer < global_timers.data + global_timers.count);
-    if timer.id timer_delete(timer.id);
-    <<timer = .{};
-}
-
 #scope_module;
 
 #import "String";
@@ -374,7 +326,7 @@ timer_destroy :: (timer: Timer) {
 #import "EGL";
 #import "GL";
 #import "Wayland";
-#import "Input";
+Input :: #import "Input";
 #import "Tagged_Union";
 #import "Basic";
 
@@ -393,24 +345,9 @@ _INVALID_WINDOW : LDWindow;
 _global_display: _Display;
 global_windows: [..] _Window;
 
-timers_mutex: pthread_mutex_t;
-_Timer :: struct {
-    id: timer_t;
-    user_data: *void;
-    cb: Timer_Cb;
-}
-global_timers : [..] _Timer;
-
-timer_callback :: (val: sigval_t) #c_call {
-    timer : Timer = *global_timers[val.sival_int];
-    if timer.cb {
-        ctx: Context;
-        push_context ctx {
-            timer.cb(timer);
-        }
-    }
-}
-
 WHEEL_DELTA : s32 : 120;
 
 global_app_id: string;
+
+events_this_frame: [..]Input.Event;
+input_button_states: [Input.NUM_BUTTON_STATES] Input.Key_Current_State;
