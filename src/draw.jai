@@ -758,13 +758,14 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             || region.end_offset < 0 || region.end_offset > buffer.bytes.count
                 continue;
 
-            start := offset_to_line(editor, buffer, region.start_offset);
-            if region.inclusive  start -= 1;
-            if start > visible_lines_end  continue;
-
             end := offset_to_line(editor, buffer, region.end_offset);
             if !region.inclusive  end -= 1;
             if end < visible_lines_start  continue;
+
+            start := offset_to_line(editor, buffer, region.start_offset);
+            if region.inclusive  start -= 1;
+            if start > visible_lines_end  break; // @TODO this should work because regions are sorted by if regions are now wonky switch this back to continue
+
 
             start = max(start, visible_lines_start);
             end   = min(end,   visible_lines_end);
@@ -965,6 +966,26 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     left_mark := align_to_grid(expand(Rect.{ rect.x + 1, y - line_height, 0, 0 }, radius));
                     draw_rounded_rect(left_mark, Colors.CODE_DEFAULT, radius, set_shader = false);
                 }
+            }
+        }
+
+        // Decorations
+        for decoration: buffer.decorations {
+            using decoration;
+            if visible_offset_range.end < position.start
+            || visible_offset_range.start > position.end
+                continue;
+
+            if #complete type == {
+                case .COLOR_SQUARE;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                rect := make_rect(screen_pos.x, screen_pos.y, line_height, line_height);
+                rect = shrink(rect, 4);
+                if color.a < 1.0 {
+                    draw_rect(rect, with_alpha(color, 1.0));
+                    rect.x += line_height - 6;
+                }
+                draw_rect(rect, color);
             }
         }
 

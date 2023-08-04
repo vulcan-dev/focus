@@ -123,3 +123,10 @@ as_3_floats :: (color: Color) -> [3] float {
 is_none :: (using color: Color) -> bool {
     return r < 0 || g < 0 || b < 0 || a < 0;
 }
+
+
+with_alpha :: (color: Color, alpha: float) -> Color {
+    result := color;
+    result.a = alpha;
+    return result;
+}

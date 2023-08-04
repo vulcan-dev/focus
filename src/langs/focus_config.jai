@@ -16,15 +16,19 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, start_index: s32, count
     highlight_focus_config_syntax(buffer, *tokenizer, false);
 }
 
-highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset_regions: bool) {
-    tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
-    tokenizer.max_t = bytes.data + bytes.count;
-    tokenizer.t     = bytes.data;
+highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
+    if reset  array_reset(*decorations);
+
+    token: Token;
 
     while true {
-        token := get_next_token(*tokenizer);
+        prev_token = token;
+        token = get_next_token(tokenizer);
         if token.type == .eof break;
+
+        if token.type == .color_value {
+            add_color_square_decoration(buffer, token.start + token.len, token.color);
+        }
 
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
@@ -47,15 +51,33 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     char := << t;
 
     if char == {
-        case #char "["; try_parsing_header(tokenizer, *token);
-        case #char "#"; parse_comment(tokenizer, *token);
+        case #char "[";
+        try_parsing_header(tokenizer, *token);
+
+        case #char "#";
+        parse_comment(tokenizer, *token);
+
+        case #char ":";
+        token.type = .punctuation;
+        t += 1;
+
         case;
             if section == {
                 case .keymap;       parse_keymap_line(tokenizer, *token);
                 case .workspace;    parse_line(tokenizer, *token);
                 case .settings;     parse_line(tokenizer, *token);
                 // case .ui;           parse_ui_line(tokenizer, *token);
-                // case .colors;       parse_color_line(tokenizer, *token);
+                case .colors;
+                    if prev_token.type == .color_name { // should be : but it's not
+                        token.type = .error;
+                        t += 1;
+                    }
+                    else if prev_token.type == .punctuation {
+                        parse_color_value(tokenizer, *token);
+                    }
+                    else {
+                        parse_color_name(tokenizer, *token);
+                    }
                 case;
                     parse_line(tokenizer, *token);
             }
@@ -154,6 +176,42 @@ parse_keymap_line :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
+parse_color_name :: (using tokenizer: *Tokenizer, token: *Token) {
+    name : string = ---;
+    name.data = t;
+
+    while t < max_t && is_alnum(t.*)  t += 1;
+
+    name.count = t - name.data;
+    if map_color_name_to_color_struct(*DEFAULT_CONFIG, name)
+        token.type = .color_name;
+    else
+        token.type = .error;
+}
+
+parse_color_value :: (using tokenizer: *Tokenizer, token: *Token) {
+    token.type = .default;
+
+    value : string = ---;
+    value.data = t;
+
+    while t < max_t && is_alnum(t.*)  t += 1;
+
+    value.count = t - value.data;
+
+    color, success := hex_to_color(value);
+    if success {
+        token.type = .color_value;
+        token.color = color;
+    }
+    else {
+        token.type = .error;
+    }
+
+    //eat_until_newline_or_comment(tokenizer);
+}
+
+
 eat_until_newline :: (using tokenizer: *Tokenizer) {
     while t < max_t && <<t != #char "\n" {
         t += 1;
@@ -178,6 +236,8 @@ Tokenizer :: struct {
     start_t: *u8;  // cursor when starting parsing new token
     t:       *u8;  // cursor
 
+    prev_token: Token;
+
     section: enum {
         none;
         workspace;
@@ -192,6 +252,7 @@ Tokenizer :: struct {
 Token :: struct {
     start, len: s32;
     type: Type;
+    color: Color;
 
     Type :: enum u16 {
         eof;
@@ -201,11 +262,16 @@ Token :: struct {
         comment;
         header;
         header_top_level;
+        punctuation;
 
         // Keymap
         modifier_key;
         key_string;
         action;
+
+        // Colors
+        color_name;
+        color_value;
     }
 }
 
@@ -218,10 +284,14 @@ COLOR_MAP :: Code_Color.[
     .COMMENT,       // comment
     .OPERATION,     // header
     .KEYWORD,       // header_top_level
+    .PUNCTUATION,   // punctuation
 
     .FUNCTION,      // modifier_key
     .DEFAULT,       // key_string
     .DEFAULT,       // action
+
+    .DEFAULT,       // color_name
+    .DEFAULT,       // color_value
 ];
 
 #run assert(enum_highest_value(Token.Type) == COLOR_MAP.count - 1);

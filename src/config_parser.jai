@@ -405,6 +405,8 @@ parse_style_line :: (using parser: *Config_Parser, line: string) -> success: boo
     return true, "";
 }
 
+#scope_export
+
 color_to_hex :: (using color: Color) -> string /* temp  */ {
     r_u8 := cast(u8)(255 * r);
     g_u8 := cast(u8)(255 * g);
@@ -442,6 +444,8 @@ hex_to_color :: (src_hex: string) -> Color, success: bool {
     return c, c.r >= 0 && c.g >= 0 && c.b >= 0 && c.a >= 0;
 }
 
+#scope_file
+
 parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: bool, error_msg: string /* temp */ {
     setting_name, setting_value := break_by_spaces(line);
     setting_name = trim_right(setting_name, ":");
@@ -457,7 +461,7 @@ parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: 
             print_to_builder(*b, "    case \"%\";\n", setting.name);
             if setting.type.type == {
                 case .BOOL;
-                    code := #string END
+                    code := #string __jai
                         bool_val, success := parse_bool(*value);
                         if success {
                             parsed_config.settings.%1 = bool_val;
@@ -465,11 +469,11 @@ parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: 
                             error_msg := log_parser_error(handler, "Couldn't parse '%1' - expected 'true' or 'false', got '%%'", setting_value);
                             return false, error_msg;
                         }
-                    END;
+                    __jai;
                     print_to_builder(*b, code, setting.name);
 
                 case .INTEGER;
-                    code := #string END
+                    code := #string __jai
                         int_val, success := parse_int(*value);
                         if success {
                             parsed_config.settings.%1 = int_val;
@@ -477,16 +481,16 @@ parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: 
                             error_msg := log_parser_error(handler, "Couldn't parse '%1' - expected a valid integer, got '%%'", setting_value);
                             return false, error_msg;
                         }
-                    END;
+                    __jai;
                     print_to_builder(*b, code, setting.name);
             }
         }
 
-        code := #string END
+        code := #string __jai
             case;
                 error_msg := log_parser_error(handler, "Unrecognized setting '%'.", setting_name);
                 return false, error_msg;
-        END;
+        __jai;
         append(*b, code);
 
         append(*b, "}\n");

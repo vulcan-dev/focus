@@ -989,6 +989,8 @@ Buffer :: struct {
         depth : s8;
     };
 
+    decorations : [..] Decoration;
+
     // TODO: put into enum_flags
     has_file               := false;  // a buffer might not have a corresponding file
     dirty                  := false;
@@ -1099,4 +1101,16 @@ Offset_Range :: struct {
 
 Coords_Range :: struct {
     start, end: Coords;
+}
+
+Decoration :: struct {
+    type : enum {
+        COLOR_SQUARE;
+    }
+    position: Offset_Range;
+    color : Color;
+}
+
+add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Color) {
+    array_add(*decorations, .{ .COLOR_SQUARE, .{position, position}, color});
 }
