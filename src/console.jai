@@ -66,7 +66,7 @@ build :: (mode : Build_Mode) {
         return;
     }
 
-    save_all_raw();
+    save_all();
 
     task := New(Console_Task, allocator=console_allocator);
     task.title = copy_string(tprint(build_mode_labels[mode], name), console_allocator);

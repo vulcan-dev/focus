@@ -17,8 +17,11 @@
     - [ ] Different color per region type (asm, string, comp_time)
     - [x] Draw selection over region
     - [x] Highlight format items in jai herestrings
+    - [ ] #if
 
-- [ ] Decorations
+- [.] Decorations
+    - [x] color squares for config
+    - [ ] color squares for jai
 
 - [.] autoindent
     - [ ] get colors/indent union working by adding eol token to jai

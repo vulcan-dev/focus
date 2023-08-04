@@ -1509,6 +1509,7 @@ draw_splitter :: (splitter_rect: Rect, split_x: float, ui_id: Ui_Id) {
 
 draw_save_file_dialog :: () {
     using save_file_dialog;
+    using font_data;
 
     ui_id := Ui_Id.save_file_dialog;
 
@@ -1979,6 +1980,8 @@ draw_commands_dialog :: () {
 }
 
 draw_delete_file_dialog :: () {
+    using font_data;
+
     ui_id := Ui_Id.delete_file_dialog;
 
     margin  := floor(12 * dpi_scale);
