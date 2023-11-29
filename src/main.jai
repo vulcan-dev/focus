@@ -40,7 +40,7 @@ main :: () {
 
     window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
 
-    window_generic_title = ifx DEBUG then "Focus (debug mode)" else "Focus";
+    window_generic_title = ifx DEBUG then "Cocus (Debug)" else "Cocus";
     platform_create_window();
 
     init_session_with_no_guidance :: () #expand {
