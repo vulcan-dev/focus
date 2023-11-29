@@ -14,9 +14,88 @@ platform_config_dir :: inline () -> string {
     return platform_data_dir();
 }
 
-platform_get_centered_window_dimensions :: (open_on_biggest: bool) -> s32, s32, s32, s32 {
+platform_get_centered_window_dimensions :: (open_on_biggest: bool, open_on_last: bool) -> s32, s32, s32, s32 {
     if !EnumDisplayMonitors(null, null, monitor_enum_proc, 0) then panic("Couldn't enumerate monitors");
     assert(monitors.count > 0, "Unexpectedly no monitors found. This is a bug.");
+
+    // It's stupid how none of these are defined...
+    GetTopWindow :: (hwnd: HWND) -> HWND #foreign user32;
+    GetConsoleWindow :: () -> HWND #foreign kernel32;
+    GetWindow :: (hwnd: HWND, wCmd: s32) -> HWND #foreign user32;
+    IsWindowVisible :: (hwnd: HWND) -> bool #foreign user32;
+    GetWindowLongPtrA :: (hwnd: HWND, nIndex: s32) -> s64 #foreign user32;
+    GetWindowTextLengthA :: (hwnd: HWND) -> s32 #foreign user32;
+    
+    GW_HWNDNEXT :: 2;
+    
+    get_previous_window :: () -> HWND {
+        should_skip_console := GetConsoleWindow() != null;
+        skipped := false;
+    
+        window := GetTopWindow(null);
+        while window {
+            window = GetWindow(window, GW_HWNDNEXT);
+        
+            if !IsWindowVisible(window)
+                continue;
+            
+            style := GetWindowLongPtrA(window, GWL_STYLE);
+            if (style & WS_THICKFRAME) == 0
+                continue;
+            
+            title_len := GetWindowTextLengthA(window);
+            if (title_len == 0)
+                continue;
+                
+            if should_skip_console && !skipped {
+                skipped = true;
+                continue;
+            }
+            
+            return window;
+        }
+        
+        return null;
+    }
+    
+    get_monitor_center_from_window :: (window: HWND) -> s32, s32, s32, s32 {
+        monitor := MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST); // What, a windows function that exists?? No way
+        mi: MONITORINFO;
+        mi.cbSize = size_of(MONITORINFO);
+        
+        if GetMonitorInfoA(monitor, *mi) {
+            mw := mi.rcMonitor.right  - mi.rcMonitor.left;
+            mh := mi.rcMonitor.bottom - mi.rcMonitor.top;
+            
+            w := cast(s32)mw / 1.5;
+            h := cast(s32)mh / 1.5;
+        
+            px := mi.rcMonitor.left + (mw - w) / 2;
+            py := mi.rcMonitor.top + (mh - h) / 2;
+            
+            return xx px, xx py, xx w, xx h;
+        }
+        
+        return 0, 0, 0, 0;
+    }
+    
+    if open_on_last {
+        last_window := get_previous_window();
+        if !last_window then {
+            log_error("Could not find previous window!\n");
+            x, y, w, h := platform_get_centered_window_dimensions(open_on_biggest, false);
+            return x, y, w, h;
+        }
+        
+        x, y, w, h := get_monitor_center_from_window(last_window);
+        if x == 0 || y == 0 || w == 0 || h == 0 {
+            log_error("Failed getting center of monitor from window\n");
+            x, y, w, h = platform_get_centered_window_dimensions(open_on_biggest, false);
+            return x, y, w, h;
+        }
+        
+        return x, y, w, h;
+    }
 
     monitor := monitors[0];
 

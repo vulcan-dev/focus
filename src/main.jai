@@ -38,7 +38,7 @@ main :: () {
     init_buffers();
     init_build_system();
 
-    window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
+    window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor, config.settings.open_on_last_active);
 
     window_generic_title = ifx DEBUG then "Cocus (Debug)" else "Cocus";
     platform_create_window();

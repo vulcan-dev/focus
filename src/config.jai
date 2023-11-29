@@ -397,7 +397,8 @@ Workspace :: struct {
 
 Settings :: struct {
     maximize_on_start                       := false;
-    open_on_the_biggest_monitor             := true;
+    open_on_the_biggest_monitor             := false;
+    open_on_last_active                     := true;
     cursor_as_block                         := true;
     rounded_cursor                          := true;
     cursor_blink_time_in_seconds            := 5;
