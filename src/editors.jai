@@ -535,7 +535,6 @@ editors_open_buffer :: (buffer_id: s64, placement: Editor_Placement = .in_place)
     buffer := *open_buffers[buffer_id];
     if buffer.num_times_opened < 255 then buffer.num_times_opened += 1;
 
-    update_window_title(buffer_id);
     maybe_mark_buffer_as_deleted(buffer_id);  // check in case we missed that it's deleted
     session_notify_modified_buffer(buffer_id);
     cursors_start_blinking();
@@ -1264,20 +1263,12 @@ restore_cursor_state :: (using editor: *Editor, cursor_state: [] Cursor) {
 make_editor_active :: (editor_id: s64) {
     assert(editor_id < open_editors.count, "Trying to activate editor %, but the last available one is %", editor_id, open_editors.count - 1);
     editors.active = editor_id;
-    update_window_title(open_editors[editor_id].buffer_id);
+    update_window_title();
 }
 
-update_window_title :: (buffer_id: s64 = -1) {
+update_window_title :: () {
     title := window_generic_title;
     if project_config.loaded && current_project_name then title = tprint("% - %", current_project_name, title);
-    if buffer_id >= 0 {
-        buffer := open_buffers[buffer_id];
-        if buffer.has_file {
-            title = tprint("% • % • %", buffer.file.name, buffer.file.path, title);
-        } else {
-            title = tprint("% • %", get_buffer_name(buffer), title);
-        }
-    }
     platform_set_window_title(title);
 }
 
@@ -1631,7 +1622,6 @@ switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := fa
     editor := *open_editors[editors.active];
     maybe_mark_buffer_as_deleted(editor.buffer_id);  // check in case we missed that it's deleted
 
-    update_window_title(open_editors[editors.active].buffer_id);
     cursors_start_blinking();
 }
 
@@ -3498,8 +3488,6 @@ move_to_editor_history_frame :: (frame: Editor_History_Frame, old_frame: Editor_
     }
 
     editor := *open_editors[editors.active];
-
-    update_window_title(editor.buffer_id);
 
     // Animations
     if old_frame.layout == .Single && frame.layout == .Double {

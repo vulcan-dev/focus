@@ -1,0 +1,318 @@
+From 1a109ae5a581e5ea92303668bb2be510e2e18ae0 Mon Sep 17 00:00:00 2001
+From: vulcan-dev <vulcan-dev@proton.me>
+Date: Wed, 29 Nov 2023 12:35:34 +0000
+Subject: [PATCH 1/2] Added Whitebox support
+
+---
+ src/draw.jai             |  11 ++-
+ src/editors.jai          |   3 +
+ src/keymap.jai           |   2 +
+ src/main.jai             |   5 ++
+ src/whitebox.jai         | 157 +++++++++++++++++++++++++++++++++++++++
+ src/widgets/commands.jai |   3 +
+ 6 files changed, 178 insertions(+), 3 deletions(-)
+ create mode 100644 src/whitebox.jai
+
+diff --git a/src/draw.jai b/src/draw.jai
+index 7d2c9cb..60f73c5 100644
+--- a/src/draw.jai
++++ b/src/draw.jai
+@@ -59,6 +59,10 @@ draw_frame :: () {
+             splitter_rect := make_rect(left_rect.x + left_rect.w, left_rect.y + footer_height, 2, left_rect.h - footer_height);
+             draw_splitter(splitter_rect, split_x, .editor_splitter);
+     }
++    
++    if whitebox_connected && (editors.active == editors.left || editors.active == editors.right) {
++        whitebox_tick();
++    }
+ 
+     if build_panel_is_shown then draw_build_panel();
+ 
+@@ -1407,11 +1411,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
+ 
+             coords := cursor_coords[main_cursor].pos;
+             if line_wrap_is_active(editor) then coords = get_real_cursor_coords(buffer, editor.cursors[main_cursor]).pos;
++            
++            whitebox_str := ifx whitebox_connected then "Whitebox: Connected  ";
+ 
+             #if DEBUG {
+-                width = xx Simp.prepare_text(font_ui_bold, tprint("Offset: %  Line: %  Col: %", editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
++                width = xx Simp.prepare_text(font_ui_bold, tprint("%Offset: %  Line: %  Col: %", whitebox_str, editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
+             } else {
+-                width = xx Simp.prepare_text(font_ui_bold, tprint("Line: %  Col: %", coords.line + 1, coords.col + 1));
++                width = xx Simp.prepare_text(font_ui_bold, tprint("%Line: %  Col: %", whitebox_str, coords.line + 1, coords.col + 1));
+             }
+             line_col_start_x := footer_rect.x + footer_rect.w - width;
+             Simp.draw_prepared_text(font_ui_bold, xx line_col_start_x, xx pen.y, color = Colors.UI_DIM);
+@@ -1425,7 +1431,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
+             draw_rect_raw(fadeout_rect, c00 = footer_color, c10 = trans, c01 = footer_color, c11 = trans);
+         }
+     }
+-
+ }
+ 
+ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, bold := true, draw_crlf_warning := false, draw_config_warning := false) -> new_width: float, new_pen: Vector2 {
+diff --git a/src/editors.jai b/src/editors.jai
+index 473183b..86b2adb 100644
+--- a/src/editors.jai
++++ b/src/editors.jai
+@@ -188,6 +188,9 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
+         case .select_all;                       select_all                          (editor, buffer);         keep_selection = true;
+         case .create_cursor_above;              create_cursor                       (editor, buffer, .above); keep_selection = true;
+         case .create_cursor_below;              create_cursor                       (editor, buffer, .below); keep_selection = true;
++        
++        case .whitebox_connect;                 whitebox_connect                    ();
++        case .whitebox_disconnect;              whitebox_disconnect                 ();
+ 
+         // Actions that do something per cursor
+         case .move_left;                        move_cursors_left                   (editor, buffer, by = .char,      shift_pressed);
+diff --git a/src/keymap.jai b/src/keymap.jai
+index ec9e84e..483d08d 100644
+--- a/src/keymap.jai
++++ b/src/keymap.jai
+@@ -377,6 +377,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
+     "move_to_next_buffer",
+     "toggle_line_wrap",
+     "toggle_line_numbers",
++    "whitebox_connect",
++    "whitebox_disconnect"
+ ]);
+ 
+ ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[
+diff --git a/src/main.jai b/src/main.jai
+index edf583c..8821514 100644
+--- a/src/main.jai
++++ b/src/main.jai
+@@ -618,6 +618,9 @@ should_quit             := false;
+ force_quit              := false;
+ should_reload_workspace := false;
+ 
++whitebox_connected: bool;
++whitebox_sock: socket.Socket;
++
+ frame_time: Time;                 // ever-increasing time since start in seconds
+ frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
+ MAX_FRAME_DT:   Time : xx (1.0 / 60);
+@@ -756,6 +759,7 @@ cpu_info: Cpu_X86;
+ dont_ignore_next_window_resize := false;
+ 
+ 
++#load "whitebox.jai";
+ #load "layout.jai";
+ #load "editors.jai";
+ #load "buffer.jai";
+@@ -844,6 +848,7 @@ _ :: #import "Linux_Display"()(VALIDATE_USAGE = DEBUG);
+ #import "Unicode";
+ #import "Window_Creation";
+ 
++socket :: #import "Socket";
+ re :: #import "uniform";
+ 
+ // NOTE to future self: remove `.NeverCapture` from `BASE_REGEX_FLAGS` if we ever want to have
+diff --git a/src/whitebox.jai b/src/whitebox.jai
+new file mode 100644
+index 0000000..fac6cfb
+--- /dev/null
++++ b/src/whitebox.jai
+@@ -0,0 +1,157 @@
++#scope_export
++whitebox_disconnect :: () {
++    if whitebox_sock == socket.INVALID_SOCKET then return;
++
++    #if OS == .WINDOWS {
++        socket.WSACleanup();
++        socket.closesocket(whitebox_sock);
++    } else {
++        close(whitebox_sock);
++    }
++    
++    whitebox_connected = false;
++}
++
++whitebox_connect :: () {
++    // Check if we're already connected
++    if whitebox_connected {
++        log("Already connected to Whitebox, disconnecting...\n");
++        whitebox_disconnect();
++    }
++
++    #if OS == .WINDOWS {
++        wsa: socket.WSADATA;
++        socket.WSAStartup(socket.WINSOCK_VERSION, *wsa);
++    }
++
++    s_addr: socket.sockaddr_in;
++    whitebox_sock, s_addr = net_create_sockaddr(WHITEBOX_ADDRESS, WHITEBOX_PORT, socket.AF_INET, .SOCK_STREAM);
++    
++    { // Set Non-Blocking
++        mode: u32 = 1;
++        socket.ioctlsocket(whitebox_sock, socket.FIONBIO, *mode);
++    }
++
++    // Connect
++    result := socket.connect(whitebox_sock, xx *s_addr, size_of(type_of(s_addr)));
++    if result == socket.SOCKET_ERROR {
++        if socket.WSAGetLastError() == socket.WSAEWOULDBLOCK {
++            write, err: socket.fd_set;
++            memset(*write, 0, size_of(socket.fd_set));
++            memset(*err, 0, size_of(socket.fd_set));
++            
++            socket.FD_SET(whitebox_sock, *write);
++            socket.FD_SET(whitebox_sock, *err);
++            
++            tv: socket.timeval;
++            tv.tv_sec = 0;
++            tv.tv_usec = 100;
++            
++            result := socket.select(0, null, *write, *err, *tv);
++            if result == 0 {
++                socket.closesocket(whitebox_sock);
++                add_user_error("[Whitebox] Timed out whilst connecting", 1.5);
++                log_error("Timeout while connecting.\n");
++                whitebox_connected = false;
++                return;
++            }
++            
++            if (socket.FD_ISSET(whitebox_sock, *err)) {
++                socket.closesocket(whitebox_sock);
++                value, s := get_error_value_and_string();
++                
++                err := tprint("[Whitebox] Failed connecting to whitebox: % {%, %}\n", result, value, s);
++                add_user_error(err, 1.5);
++                log_error(err);
++            }
++        } else {
++            value, s := get_error_value_and_string();
++            err := tprint("[Whitebox] Failed connecting to whitebox: % {%, %}\n", result, value, s);
++            add_user_error(err, 1.5);
++            log_error(err);
++            
++            whitebox_disconnect();
++            return;
++        }
++        
++        add_success_message("[Whitebox] Successfully Connected!", 2);
++    }
++    
++    whitebox_connected = true;
++}
++
++whitebox_tick :: () {
++    active_editor, active_buffer := get_active_editor_and_buffer();
++    if !active_editor || !active_buffer then return;
++
++    cursor: Cursor = active_editor.cursors[0];
++    coords := get_cursor_coords(active_editor, active_buffer, cursor).pos;
++
++    if line_wrap_is_active(active_editor) then coords = get_real_cursor_coords(active_buffer, cursor).pos;    
++    if !active_buffer.has_file then return; // I mean, you don't have to return, but that wouldn't be very good
++
++    filename := active_buffer.file.full_path;
++    whitebox_data := tprint(#string END
++{
++    "editor": "Focus",
++    "path": "%1",
++    "selection": [
++        { "line": %2, "column": %3 },
++        { "line": %2, "column": %3 }
++    ],
++    "dirty": [%4],
++    "ack_pkt": 0,
++    "supports": {
++        "receiving_data": false,
++        "setting_cursor": false
++    }
++}
++    END, active_buffer.file.full_path, coords.line + 1, coords.col + 1, ifx active_buffer.modified then "\"unsaved\"" else "\"\"");
++
++    written := socket.send(whitebox_sock, whitebox_data.data, xx whitebox_data.count, 0);
++    if written <= 0 {
++        add_user_error("[Whitebox] Failed sending data to Whitebox, disconnecting...", 1);
++        whitebox_disconnect();
++    }
++}
++
++#scope_file
++net_create_sockaddr :: (addr: $T, port: u16, family: socket.ADDRESS_FAMILY, type: socket.SOCK, protocol: socket.IPPROTO = 0) -> (sock: socket.Socket, s_addr: socket.sockaddr_in) #modify {
++    return T == string ||
++           T == u32;
++} {
++    s_addr: socket.sockaddr_in = .{
++        sin_family = family,
++        sin_port = socket.htons(port)
++    };
++    
++    convert_ip_to_long :: (addr: $T) -> u32 #modify {
++        return T == string || T == u32;
++    } {
++        #if type_of(addr) == string {
++            return socket.inet_addr(to_c_string(addr));
++        } else {
++            #assert type_of(addr) == u32;
++            return socket.htonl(addr);
++        }
++    }
++    
++    #if OS == .WINDOWS {
++        s_addr.sin_addr.S_un.S_addr = convert_ip_to_long(addr);
++    } else {
++        s_addr.sin_addr.s_addr = convert_ip_to_long(addr);
++    }
++    
++    return socket.socket(s_addr.sin_family, type, protocol), s_addr;
++}
++
++#scope_file
++#import "System";
++socket :: #import "Socket";
++
++#if OS == .WINDOWS {
++    #import "Windows";
++}
++
++WHITEBOX_ADDRESS :: "127.0.0.1";
++WHITEBOX_PORT    :: 19013;
+\ No newline at end of file
+diff --git a/src/widgets/commands.jai b/src/widgets/commands.jai
+index 10534cc..8f5ac17 100644
+--- a/src/widgets/commands.jai
++++ b/src/widgets/commands.jai
+@@ -210,6 +210,9 @@ commands := #run Command.[
+     .{ .toggle_fullscreen,                                  "Toggle Fullscreen",                  0, .None },
+ 
+     .{ .autoindent_region,                                  "Autoindent Region",                  0, .Single },
++    
++    .{ .whitebox_connect,                                   "Whitebox Connect",                   0, .None },
++    .{ .whitebox_disconnect,                                "Whitebox Disconnect",                0, .None }
+ ];
+ 
+ Command :: struct {
+-- 
+2.40.0.windows.1
+
+
+From 61e53458e3fe097d6a281850f0330ea40d9b415e Mon Sep 17 00:00:00 2001
+From: vulcan-dev <vulcan-dev@proton.me>
+Date: Wed, 29 Nov 2023 12:47:22 +0000
+Subject: [PATCH 2/2] Fix warning
+
+---
+ src/whitebox.jai | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/whitebox.jai b/src/whitebox.jai
+index fac6cfb..740d5c5 100644
+--- a/src/whitebox.jai
++++ b/src/whitebox.jai
+@@ -106,7 +106,7 @@ whitebox_tick :: () {
+         "setting_cursor": false
+     }
+ }
+-    END, active_buffer.file.full_path, coords.line + 1, coords.col + 1, ifx active_buffer.modified then "\"unsaved\"" else "\"\"");
++    END, active_buffer.file.full_path, coords.line + 1, coords.col + 1, ifx active_buffer.modified then "\"unsaved\"");
+ 
+     written := socket.send(whitebox_sock, whitebox_data.data, xx whitebox_data.count, 0);
+     if written <= 0 {
+-- 
+2.40.0.windows.1
+
