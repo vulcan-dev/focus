@@ -377,6 +377,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "move_to_next_buffer",
     "toggle_line_wrap",
     "toggle_line_numbers",
+    "whitebox_connect",
+    "whitebox_disconnect"
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[

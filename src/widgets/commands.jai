@@ -210,6 +210,9 @@ commands := #run Command.[
     .{ .toggle_fullscreen,                                  "Toggle Fullscreen",                  0, .None },
 
     .{ .autoindent_region,                                  "Autoindent Region",                  0, .Single },
+    
+    .{ .whitebox_connect,                                   "Whitebox Connect",                   0, .None },
+    .{ .whitebox_disconnect,                                "Whitebox Disconnect",                0, .None }
 ];
 
 Command :: struct {

@@ -618,6 +618,9 @@ should_quit             := false;
 force_quit              := false;
 should_reload_workspace := false;
 
+whitebox_connected: bool;
+whitebox_sock: socket.Socket;
+
 frame_time: Time;                 // ever-increasing time since start in seconds
 frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
 MAX_FRAME_DT:   Time : xx (1.0 / 60);
@@ -756,6 +759,7 @@ cpu_info: Cpu_X86;
 dont_ignore_next_window_resize := false;
 
 
+#load "whitebox.jai";
 #load "layout.jai";
 #load "editors.jai";
 #load "buffer.jai";
@@ -844,6 +848,7 @@ _ :: #import "Linux_Display"()(VALIDATE_USAGE = DEBUG);
 #import "Unicode";
 #import "Window_Creation";
 
+socket :: #import "Socket";
 re :: #import "uniform";
 
 // NOTE to future self: remove `.NeverCapture` from `BASE_REGEX_FLAGS` if we ever want to have

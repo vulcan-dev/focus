@@ -59,6 +59,10 @@ draw_frame :: () {
             splitter_rect := make_rect(left_rect.x + left_rect.w, left_rect.y + footer_height, 2, left_rect.h - footer_height);
             draw_splitter(splitter_rect, split_x, .editor_splitter);
     }
+    
+    if whitebox_connected && (editors.active == editors.left || editors.active == editors.right) {
+        whitebox_tick();
+    }
 
     if build_panel_is_shown then draw_build_panel();
 
@@ -1407,11 +1411,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             coords := cursor_coords[main_cursor].pos;
             if line_wrap_is_active(editor) then coords = get_real_cursor_coords(buffer, editor.cursors[main_cursor]).pos;
+            
+            whitebox_str := ifx whitebox_connected then "Whitebox: Connected  ";
 
             #if DEBUG {
-                width = xx Simp.prepare_text(font_ui_bold, tprint("Offset: %  Line: %  Col: %", editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
+                width = xx Simp.prepare_text(font_ui_bold, tprint("%Offset: %  Line: %  Col: %", whitebox_str, editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
             } else {
-                width = xx Simp.prepare_text(font_ui_bold, tprint("Line: %  Col: %", coords.line + 1, coords.col + 1));
+                width = xx Simp.prepare_text(font_ui_bold, tprint("%Line: %  Col: %", whitebox_str, coords.line + 1, coords.col + 1));
             }
             line_col_start_x := footer_rect.x + footer_rect.w - width;
             Simp.draw_prepared_text(font_ui_bold, xx line_col_start_x, xx pen.y, color = Colors.UI_DIM);
@@ -1425,7 +1431,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             draw_rect_raw(fadeout_rect, c00 = footer_color, c10 = trans, c01 = footer_color, c11 = trans);
         }
     }
-
 }
 
 draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, bold := true, draw_crlf_warning := false, draw_config_warning := false) -> new_width: float, new_pen: Vector2 {
