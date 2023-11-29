@@ -191,6 +191,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         
         case .whitebox_connect;                 whitebox_connect                    ();
         case .whitebox_disconnect;              whitebox_disconnect                 ();
+        
+        case .toggle_footer;                    toggle_footer                       ();
 
         // Actions that do something per cursor
         case .move_left;                        move_cursors_left                   (editor, buffer, by = .char,      shift_pressed);
@@ -368,6 +370,10 @@ active_editor_type_char :: (char: u32) {
     buffer.last_edit_time = frame_time;
     editor.cursor_moved = .unimportant;
     cursors_start_blinking();
+}
+
+toggle_footer :: () {
+    draw_footer = !draw_footer;
 }
 
 get_active_editor_and_buffer :: () -> *Editor, *Buffer {

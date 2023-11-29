@@ -399,6 +399,7 @@ Settings :: struct {
     maximize_on_start                       := false;
     open_on_the_biggest_monitor             := true;
     cursor_as_block                         := true;
+    rounded_cursor                          := true;
     cursor_blink_time_in_seconds            := 5;
     highlight_selection_occurrences         := true;
     disable_that_annoying_paste_effect      := false;

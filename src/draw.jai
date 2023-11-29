@@ -10,7 +10,7 @@ draw_frame :: () {
     // Check whether we need to deactivate elements before drawing
     if (!mouse.left.is_down || mouse.left.just_released) && (!mouse.middle.is_down || mouse.middle.just_released) then ui.active = .none;
 
-    footer_height := font_ui_line_height * 1.6;
+    footer_height: float = ifx draw_footer then font_ui_line_height * 1.6 else 0;
 
     active_pane_rect: Rect = ---;
 
@@ -992,7 +992,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
 
                 rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
-                draw_rounded_rect(rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                if config.settings.rounded_cursor {
+                    draw_rounded_rect(rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                } else {
+                    draw_rect(rect, Colors.CURSOR);
+                }
 
                 // Draw the letter on top for better visibility
                 if cursor_as_block {
@@ -1380,7 +1384,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
 
     // Draw footer
-    if !as_build_panel {
+    if draw_footer && !as_build_panel {
         footer_color := Colors.BACKGROUND_BRIGHT;
         draw_rect(footer_rect, footer_color);
         draw_top_shadow(footer_rect);

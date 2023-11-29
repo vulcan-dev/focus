@@ -212,7 +212,9 @@ commands := #run Command.[
     .{ .autoindent_region,                                  "Autoindent Region",                  0, .Single },
     
     .{ .whitebox_connect,                                   "Whitebox Connect",                   0, .None },
-    .{ .whitebox_disconnect,                                "Whitebox Disconnect",                0, .None }
+    .{ .whitebox_disconnect,                                "Whitebox Disconnect",                0, .None },
+    
+    .{ .toggle_footer,                                      "Toggle Footer",                      0, .Single }
 ];
 
 Command :: struct {

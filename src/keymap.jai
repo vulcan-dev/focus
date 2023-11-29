@@ -378,7 +378,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "toggle_line_wrap",
     "toggle_line_numbers",
     "whitebox_connect",
-    "whitebox_disconnect"
+    "whitebox_disconnect",
+    "toggle_footer"
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[

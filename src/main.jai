@@ -620,6 +620,7 @@ should_reload_workspace := false;
 
 whitebox_connected: bool;
 whitebox_sock: socket.Socket;
+draw_footer: bool = true;
 
 frame_time: Time;                 // ever-increasing time since start in seconds
 frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
