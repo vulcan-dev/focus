@@ -106,7 +106,7 @@ whitebox_tick :: () {
         "setting_cursor": false
     }
 }
-    END, active_buffer.file.full_path, coords.line + 1, coords.col + 1, ifx active_buffer.modified then "\"unsaved\"" else "\"\"");
+    END, active_buffer.file.full_path, coords.line + 1, coords.col + 1, ifx active_buffer.modified then "\"unsaved\"");
 
     written := socket.send(whitebox_sock, whitebox_data.data, xx whitebox_data.count, 0);
     if written <= 0 {
