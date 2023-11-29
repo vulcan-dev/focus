@@ -108,7 +108,7 @@ draw_welcome_screen :: (main_area: Rect) {
 
     // Draw the left part
     {
-        draw_rect(left_area, Colors.BACKGROUND_LIGHT);
+        draw_rect(left_area, Colors.BACKGROUND_WELCOME);
 
         // TODO: fix the circle shader
         // center := center_of(logo_rect);
@@ -122,11 +122,11 @@ draw_welcome_screen :: (main_area: Rect) {
         Simp.set_shader_for_rects();
 
         circle := logo_rect;
-        draw_rounded_rect(circle, Colors.BACKGROUND_DARK, radius = circle.w / 2, set_shader = false);
+        draw_rounded_rect(circle, Colors.LOGO_OUTER, radius = circle.w / 2, set_shader = false);
         circle = shrink(circle, shrink_step);
-        draw_rounded_rect(circle, Colors.BACKGROUND, radius = circle.w / 2, set_shader = false);
+        draw_rounded_rect(circle, Colors.LOGO_MIDDLE, radius = circle.w / 2, set_shader = false);
         circle = shrink(circle, shrink_step);
-        draw_rounded_rect(circle, Colors.BACKGROUND_LIGHT, radius = circle.w / 2, set_shader = false);
+        draw_rounded_rect(circle, Colors.LOGO_INNER, radius = circle.w / 2, set_shader = false);
 
         font := font_ui_big;
         version_text := tprint("Version %", VERSION);
@@ -1411,13 +1411,17 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             coords := cursor_coords[main_cursor].pos;
             if line_wrap_is_active(editor) then coords = get_real_cursor_coords(buffer, editor.cursors[main_cursor]).pos;
+
+            selection := get_selection(editor.cursors[editor.cursors.count - 1]);
+            selected_count := (selection.end - selection.start);
+            selected_str := ifx selected_count > 0 then tprint(" (% selected)", selected_count) else " ";
             
             whitebox_str := ifx whitebox_connected then "Whitebox: Connected  ";
 
-            #if DEBUG {
-                width = xx Simp.prepare_text(font_ui_bold, tprint("%Offset: %  Line: %  Col: %", whitebox_str, editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
+            #if DEBUG { // It's the same, but I may want something else in the future..
+                width = xx Simp.prepare_text(font_ui_bold, tprint("%Line: %  Col: % %", whitebox_str, coords.line + 1, coords.col + 1, selected_str));
             } else {
-                width = xx Simp.prepare_text(font_ui_bold, tprint("%Line: %  Col: %", whitebox_str, coords.line + 1, coords.col + 1));
+                width = xx Simp.prepare_text(font_ui_bold, tprint("%Line: %  Col: % %", whitebox_str, coords.line + 1, coords.col + 1, selected_str));
             }
             line_col_start_x := footer_rect.x + footer_rect.w - width;
             Simp.draw_prepared_text(font_ui_bold, xx line_col_start_x, xx pen.y, color = Colors.UI_DIM);

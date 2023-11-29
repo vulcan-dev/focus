@@ -187,6 +187,10 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "background_highlight";                    return *config.colors.BACKGROUND_HIGHLIGHT;
         case "background_light";                        return *config.colors.BACKGROUND_LIGHT;
         case "background_bright";                       return *config.colors.BACKGROUND_BRIGHT;
+        case "background_welcome";                      return *config.colors.BACKGROUND_WELCOME;
+        case "logo_outer";                              return *config.colors.LOGO_OUTER;
+        case "logo_middle";                             return *config.colors.LOGO_MIDDLE;
+        case "logo_inner";                              return *config.colors.LOGO_INNER;
         case "selection_active";                        return *config.colors.SELECTION_ACTIVE;
         case "selection_inactive";                      return *config.colors.SELECTION_INACTIVE;
         case "selection_highlight";                     return *config.colors.SELECTION_HIGHLIGHT;
