@@ -142,16 +142,16 @@ commands := #run -> [] Command {
         .{ .build_kill_running_command,            "Build: Kill Running Command",        .None,    0 },
 
         .{ .autoindent_region,                     "Autoindent Region",                  .Single,  0 },
+
+        .{ .whitebox_connect,                                   "Whitebox Connect",       .None,   0 },
+        .{ .whitebox_disconnect,                                "Whitebox Disconnect",    .None,   0 },
+        
+        .{ .toggle_footer,                                      "Toggle Footer",          .Single, 0 }
     ];
 
     linux_commands := Command.[
         .{ .show_troubleshooting_info,             "Show Troubleshooting Information",   .None,    0 },
-        
-    .{ .whitebox_connect,                                   "Whitebox Connect",                   0, .None },
-    .{ .whitebox_disconnect,                                "Whitebox Disconnect",                0, .None },
-    
-    .{ .toggle_footer,                                      "Toggle Footer",                      0, .Single }
-];
+    ];
 
     commands: [..] Command;
 

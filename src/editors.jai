@@ -1301,7 +1301,7 @@ make_editor_active :: (editor_id: s64) {
     array_insert_at(*most_recent_buffers, buffer_id, 0);
 }
 
-update_window_title :: () {
+update_window_title :: (buffer_id: s64 = -1) {
     title := window_generic_title;
     if project_config.loaded && current_project_name then title = tprint("% - %", current_project_name, title);
     if buffer_id >= 0 {
@@ -1309,7 +1309,8 @@ update_window_title :: () {
         if buffer.has_file {
             title = tprint("% • % • %", buffer.file.name, buffer.file.path, title);
         } else {
-            title = tprint("% • %", get_buffer_name(buffer), title);
+            buffer_name := get_buffer_name(buffer);
+            if buffer_name then title = tprint("% • %", buffer_name, title);
         }
     }
     platform_set_window_title(title);
@@ -1665,7 +1666,7 @@ switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := fa
     editor := *open_editors[editors.active];
     maybe_mark_buffer_as_deleted(editor.buffer_id);  // check in case we missed that it's deleted
 
-    update_window_title(open_editors[editors.active].buffer_id);
+    make_editor_active(editors.active);
     cursors_start_blinking();
 }
 
