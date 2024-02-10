@@ -4,13 +4,18 @@ open_file_dialog_handle_event :: (event: Input.Event) -> handled: bool {
     if event.type == .KEYBOARD && event.key_pressed {
         action := map_event_to_action(event, Action_Open_File_Dialog);
         if action == {
-            case .close_dialog;             hide_open_file_dialog(manual = true);                                                                                                return true;
-            case .open_entry_in_place;      open_file_dialog_open_entry(entries.selected, .in_place);                                                                            return true;
-            case .open_entry_on_the_side;   if mode != .save  open_file_dialog_open_entry(entries.selected, .on_the_side);                                                       return true;
-            case .open_entry_on_the_left;   if mode != .save  open_file_dialog_open_entry(entries.selected, .left);                                                              return true;
-            case .open_entry_on_the_right;  if mode != .save  open_file_dialog_open_entry(entries.selected, .right);                                                             return true;
-            case .open_entry_in_explorer;   open_file_dialog_open_entry_in_explorer(entries.selected);                                                                           return true;
-            case .open_directory;           if open_file_dialog_open_entry(entries.selected, .in_place, folder_only = true, slash_key_pressed = (event.key_code == #char "/"))   return true;
+            case .escape;                   #through;
+            case .close_dialog;             hide_open_file_dialog(manual = true);                                          return true;
+
+            case .open_entry_in_place;      open_file_dialog_open_entry(entries.selected, .in_place);                      return true;
+            case .open_entry_on_the_side;   if mode != .save  open_file_dialog_open_entry(entries.selected, .on_the_side); return true;
+            case .open_entry_on_the_left;   if mode != .save  open_file_dialog_open_entry(entries.selected, .left);        return true;
+            case .open_entry_on_the_right;  if mode != .save  open_file_dialog_open_entry(entries.selected, .right);       return true;
+            case .open_entry_in_explorer;   open_file_dialog_open_entry_in_explorer(entries.selected);                     return true;
+
+            case .open_directory;           handled := open_file_dialog_open_entry(entries.selected, .in_place, folder_only = true, slash_key_pressed = (event.key_code == #char "/"));
+                                            return handled;
+
             case .pop_directory;            if pop_directory() return true;
 
             case .toggle_expand;            toggle_expand();                    return true;
@@ -46,7 +51,7 @@ deinit_open_file_dialog :: () {
 
     initted = false;
 
-    pool_allocator := get_pool_allocator();
+    pool_allocator := Allocator.{ proc = flat_pool_allocator_proc, data = *memory_pool };
     push_allocator(pool_allocator);
 
     reset(*memory_pool);
@@ -69,6 +74,14 @@ show_open_file_dialog :: (mode: Open_File_Dialog.Mode, buffer_id_to_save: s64 = 
     active_global_widget = .open_file_dialog;
     open_file_dialog.mode = mode;
     open_file_dialog.buffer_id_to_save = buffer_id_to_save;
+
+    if mode == .open_editors && most_recent_buffers.count >= 2 && editors.active >= 0 {
+        active_buffer_id := open_editors[editors.active].buffer_id;
+        if active_buffer_id == most_recent_buffers[0] {
+            // Swap the first 2 buffers so that we don't show the current buffer first
+            Swap(*most_recent_buffers[0], *most_recent_buffers[1]);
+        }
+    }
 
     refresh_entries();
 }
@@ -250,7 +263,7 @@ set_path_chunks_from_file :: (file_path: string) {
 
     advance(*parent_dir, project_dir.path.count);
 
-    for chunk : split(parent_dir, cast(u8) #char "/") {
+    for chunk : split(parent_dir, cast(u8) #char "/",, allocator = temp) {
         trimmed := trim(chunk);
         if !trimmed continue;
         array_add(*path_chunks, copy_string(trimmed));
@@ -268,7 +281,7 @@ refresh_entries :: (clear_input := true) {
     // Do it before pushing the pool allocator because the input uses use the global heap
     if clear_input then text_input_fully_clear(*input);
 
-    pool_allocator := get_pool_allocator();
+    pool_allocator := Allocator.{ proc = flat_pool_allocator_proc, data = *memory_pool };
     push_allocator(pool_allocator);
 
     reset(*memory_pool);  // to avoid having to free each string
@@ -282,7 +295,46 @@ refresh_entries :: (clear_input := true) {
     entries.selected = 0;
     array_reset(*entries.filtered);
 
-    filter_chars := decode_utf8_string_to_temp_char_substrings(cast(string) input.text);
+    // This bit will be set when we want to make sure an entry appears on top
+    top_priority_bit: u64 = 1 << 62;  // NOT the topmost bit because we'll be converting to s64 later
+
+    maybe_add_a_buffer_entry :: (buffer: Buffer, buffer_id: s64) #expand {
+        // @MEMORY SAFETY: if we ever delete buffers from open_buffers and free memory, this will have to copy everything!
+        if buffer.deleted && !buffer.modified continue;  // NOTE: we might still want to see externally deleted buffers.
+                                                         // Maybe use 'deleted' and 'modified_on_disk' to distingiush the buffers
+                                                         // we haven't deleted ourselves?
+                                                         // Alternatively, if there's an editor for a deleted buffer we probably
+                                                         // still want to see it here
+
+        buffer_name := get_buffer_name(buffer);
+        name_score, name_highlights, exact_match := fuzzy_match(buffer_name,      filter);
+        path_score, path_highlights              := fuzzy_match(buffer.file.path, filter, only_exact=exact_match);
+        score := 200 * name_score + path_score;  // name score is much more important
+        if score <= 0 && filter.full_string continue;
+
+        entry := array_add(*entries.filtered);
+        entry.buffer_id = buffer_id;
+        entry.file = buffer.file;
+        entry.entry_name = buffer_name;
+        if !buffer.has_file {
+            entry.entry_name = copy_string(buffer_name);
+            entry.icon = Icon.text;
+        }
+        entry.name_highlights = name_highlights;
+        entry.path_highlights = path_highlights;
+        // NOTE: there's space left in the sort key in case we need to add more parameters
+        score_part:      u64 = (cast,trunc(u64) score)                              << 22;
+        dir_id_part:     u64 = (cast,trunc(u64) (63 - buffer.file.project_dir_id))  << 16;
+        length_part:     u64 = (cast,trunc(u64) (400 - buffer_name.count))          <<  8;
+        times_open_part: u64 = (cast,trunc(u64) buffer.num_times_opened)            <<  0;
+        if !filter.full_string then length_part = 0;  // don't sort by length when no filtering is applied
+        entry.sort_key = dir_id_part | score_part | length_part | times_open_part;
+
+        if buffer.modified         then { entry.flags |= .MODIFIED;         entry.sort_key |= top_priority_bit; }
+        if buffer.modified_on_disk then { entry.flags |= .MODIFIED_ON_DISK; entry.sort_key |= top_priority_bit; }
+    }
+
+    filter := construct_fuzzy_filter(cast(string) input.text, treat_slashes_as_spaces = true);
 
     if #complete mode == {
         case .save; #through;
@@ -290,8 +342,9 @@ refresh_entries :: (clear_input := true) {
             if !path_chunks {
                 // Display project dirs and drives
                 for project_dirs {
-                    score, name_highlights := fuzzy_match(it.name, filter_chars);
-                    if score < 0 continue;
+                    score, name_highlights := fuzzy_match(it.name, filter);
+                    if score <= 0 && filter.full_string continue;
+                    if filter.full_string then score -= xx it.name.count;  // prefer shorter name all other things being equal
 
                     entry := array_add(*entries.filtered);
                     entry.type = .project_dir;
@@ -311,8 +364,9 @@ refresh_entries :: (clear_input := true) {
                 for platform_enumerate_logical_drives() {
                     name := copy_string(it);
 
-                    score, name_highlights := fuzzy_match(name, filter_chars);
-                    if score < 0 continue;
+                    score, name_highlights := fuzzy_match(name, filter);
+                    if score <= 0 && filter.full_string continue;
+                    if filter.full_string then score -= xx name.count;  // prefer shorter name all other things being equal
 
                     entry := array_add(*entries.filtered);
                     entry.type = .drive;
@@ -332,8 +386,9 @@ refresh_entries :: (clear_input := true) {
             } else {
                 // Filter current files
                 for current_files {
-                    score, name_highlights := fuzzy_match(it.name, filter_chars);
-                    if score < 0 continue;
+                    score, name_highlights := fuzzy_match(it.name, filter);
+                    if score <= 0 && filter.full_string continue;
+                    if filter.full_string then score -= xx it.name.count;  // prefer shorter name all other things being equal
 
                     entry := array_add(*entries.filtered);
                     <<entry = it;
@@ -349,56 +404,27 @@ refresh_entries :: (clear_input := true) {
             }
 
         case .search;
-            // @MEMORY SAFETY: if we ever delete buffers from open_buffers and free memory, this will have to copy everything!
-            num_entries := 0;
-
-            // This bit will be set when we want to make sure an entry appears on top
-            top_priority_bit: u64 = 1 << 62;  // NOT the topmost bit because we'll be converting to s64 later
-
             for buffer, buffer_id : open_buffers {
-                if buffer.deleted && !buffer.modified continue;  // NOTE: we might still want to see externally deleted buffers.
-                                                                 // Maybe use 'deleted' and 'modified_on_disk' to distingiush the buffers
-                                                                 // we haven't deleted ourselves?
-                                                                 // Alternatively, if there's an editor for a deleted buffer we probably
-                                                                 // still want to see it here
+                maybe_add_a_buffer_entry(buffer, buffer_id);
+            }
 
-                buffer_name := get_buffer_name(buffer);
-                name_score, name_highlights := fuzzy_match(buffer_name, filter_chars);
-                path_score, path_highlights := fuzzy_match(buffer.file.path, filter_chars);
-                score := 200 * name_score + path_score;  // name score is much more important
-                if score < 0 continue;
-
-                entry := array_add(*entries.filtered);
-                entry.buffer_id = buffer_id;
-                entry.file = buffer.file;
-                entry.entry_name = buffer_name;
-                if !buffer.has_file {
-                    entry.entry_name = copy_string(buffer_name);
-                    entry.icon = File_Icon.text;
-                }
-                entry.name_highlights = name_highlights;
-                entry.path_highlights = path_highlights;
-                // NOTE: there's space left in the sort key in case we need to add more parameters
-                dir_id_part:     u64 = (cast,trunc(u64) (63 - buffer.file.project_dir_id))  << 55;
-                score_part:      u64 = (cast,trunc(u64) score)                              << 16;
-                times_open_part: u64 = (cast,trunc(u64) buffer.num_times_opened)            <<  0;
-                entry.sort_key = dir_id_part | score_part | times_open_part;
-
-                if buffer.modified         then { entry.flags |= .MODIFIED;         entry.sort_key |= top_priority_bit; }
-                if buffer.modified_on_disk then { entry.flags |= .MODIFIED_ON_DISK; entry.sort_key |= top_priority_bit; }
-
-                num_entries += 1;
-                if num_entries >= config.settings.max_entries_in_open_file_dialog break;
+        case .open_editors;
+            for buffer_id : most_recent_buffers {
+                buffer := *open_buffers[buffer_id];
+                maybe_add_a_buffer_entry(buffer, buffer_id);
             }
     }
 
-    compare_entries :: (e1: Entry, e2: Entry) -> s64 {
-        key_diff := cast,no_check(s64) e2.sort_key - cast,no_check(s64) e1.sort_key;
-        if key_diff != 0 return key_diff;
-        return memcmp(e1.name.data, e2.name.data, min(e1.name.count, e2.name.count));
-    }
+    if !(mode == .open_editors && !input.text) {  // don't sort most recent buffers if no filters are used
 
-    quick_sort(entries.filtered, compare_entries);
+        compare_entries :: (e1: Entry, e2: Entry) -> s64 {
+            key_diff := cast,no_check(s64) e2.sort_key - cast,no_check(s64) e1.sort_key;
+            if key_diff != 0 return key_diff;
+            return memcmp(e1.name.data, e2.name.data, min(e1.name.count, e2.name.count));
+        }
+
+        quick_sort(entries.filtered, compare_entries);
+    }
 
     if mode == .save && input.text && path_chunks {
         array_add(*entries.filtered, Entry.{
@@ -504,13 +530,6 @@ toggle_expand :: () {
     start_animation(*width_anim, width_percentage, target_width);
 }
 
-get_pool_allocator :: () -> Allocator {
-    a: Allocator;
-    a.proc = flat_pool_allocator_proc;
-    a.data = *memory_pool;
-    return a;
-}
-
 memory_pool: Flat_Pool;
 
 #scope_export
@@ -551,6 +570,7 @@ Open_File_Dialog :: struct {
 
     Mode :: enum {
         search;
+        open_editors;
         navigate;
         save;
     }

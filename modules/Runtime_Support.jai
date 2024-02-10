@@ -1,5 +1,7 @@
 #module_parameters(ENABLE_BACKTRACE_ON_CRASH: bool);
 
+OS_IS_UNIX :: OS == .MACOS || OS == .LINUX || OS == .PS5 || OS == .IOS || OS == .ANDROID;
+
 debug_break :: () #no_context {
     if #compile_time {
         compile_time_debug_break :: () #compiler #no_context;
@@ -89,8 +91,6 @@ runtime_support_assertion_failed :: (loc: Source_Code_Location, message: string)
 		write_string("!\n", to_standard_error = true);
 	}
 
-    report_failed_assertion_more_visibly(loc, message);
-
     print_stack_trace :: (node: *Stack_Trace_Node) {  // @Copypasta from modules/Basic, but without calling print.
         while node {
             // There are two different line numbers available.
@@ -119,6 +119,8 @@ runtime_support_assertion_failed :: (loc: Source_Code_Location, message: string)
     } else {
         write_string("Exiting.\n", to_standard_error = true);
     }
+
+    report_failed_assertion_more_visibly(loc, message);
 
     __runtime_support_disable_stack_trace = true;
 
@@ -280,25 +282,25 @@ __arithmetic_overflow :: (left: s64, right: s64, type_code: u16, line_number: s6
 
     signed_string := ifx signed then "s" else "u";
     operator_string := " / ";
-    
+
     if      operator_index == 1 then operator_string = " + ";
     else if operator_index == 2 then operator_string = " - ";
     else if operator_index == 3 then operator_string = " * ";
-    
+
     write_string("Arithmetic overflow. We tried to compute:\n    ", to_standard_error = true);
 
     if signed  write_number(left, to_standard_error = true);
     else       write_nonnegative_number(cast,no_check(u64)left, to_standard_error = true);
 
     write_string(operator_string, to_standard_error = true);
-    
+
     if signed  write_number(right, to_standard_error = true);
     else       write_nonnegative_number(cast,no_check(u64)right, to_standard_error = true);
-    
+
     write_strings("\nThe operand type is ", signed_string, to_standard_error = true);
     write_nonnegative_number(size, to_standard_error = true);
     write_string(", but the result does not fit into this type.\n", to_standard_error = true);
-    
+
     if fatal my_panic();
 }
 
@@ -529,7 +531,7 @@ one_time_init :: (synch_value: *s32, to_insert: Code) #expand {
 // It must exist and be relatively easy to compile (without requiring #run of
 // procedures, for example). Context_Base is going to be annoying to edit because
 // if you make an error of some kind, even a simple one like an undeclared identifier,
-// you won't get a helpful error message. 
+// you won't get a helpful error message.
 Context_Base :: struct {
     context_info:  *Type_Info_Struct; // Allow libs or DLLs to see what context we are passing them.
 
@@ -648,22 +650,16 @@ synch_initted: s32 = 0;
 // Below are the functions we've added.
 
 report_bounds_check_error_more_visibly :: (index: s64, limit: s64, line_number: s64, filename: *u8) #no_context {
-    ctx: Context;
-    push_context ctx {
-        report_error_in_yer_face("Array bounds check failed in file % at line number %: \nProvided index: %, maximum index: %\n", to_string(filename), line_number, index, limit);
-    }
+    report_error_in_yer_face_no_ctx("Array bounds check failed in file % at line number %: \nProvided index: %, maximum index: %", to_string(filename), line_number, index, limit-1);
 }
 
 report_null_pointer_error_more_visibly :: (index: s64, line_number: s64, filename: *u8) #no_context {
-    ctx: Context;
-    push_context ctx {
-        if index {
-            // This is a procedure argument.
-            report_error_in_yer_face("Null pointer check failed in file % at line number %: \nArgument % is undergoing an automatic dereference, but the pointer is null.", to_string(filename), line_number, index);
-        } else {
-            // It was a dereference that happened in some other way.
-            report_error_in_yer_face("Null pointer check failed in file % at line number %: \nA pointer is undergoing an automatic dereference, but the pointer is null.", to_string(filename), line_number);
-        }
+    if index {
+        // This is a procedure argument.
+        report_error_in_yer_face_no_ctx("Null pointer check failed in file % at line number %: \nArgument % is undergoing an automatic dereference, but the pointer is null.", to_string(filename), line_number, index);
+    } else {
+        // It was a dereference that happened in some other way.
+        report_error_in_yer_face_no_ctx("Null pointer check failed in file % at line number %: \nA pointer is undergoing an automatic dereference, but the pointer is null.", to_string(filename), line_number);
     }
 }
 
@@ -671,22 +667,49 @@ report_failed_assertion_more_visibly :: (loc: Source_Code_Location, msg: string)
     report_error_in_yer_face("Assertion failed in file % at line %, char %: \n%", loc.fully_pathed_filename, loc.line_number, loc.character_number, msg);
 }
 
-report_error_in_yer_face :: (message: string, args: .. Any) {
-    System :: #import "System";
-    String :: #import "String";
-    Basic :: #import "Basic";
-    File :: #import "File";
+report_error_in_yer_face_no_ctx :: (message: string, args: .. Any) #no_context {
+    ctx: Context;
+    push_context ctx { report_error_in_yer_face(message, ..args, from_no_context = true); }
+}
+
+report_error_in_yer_face :: (message: string, args: .. Any, from_no_context := false) {
+    using _ :: #import "System"; // 'using' ensures the imports stay within this scope. (Raw imports do not respect scopes)
+    using _ :: #import "String";
+    using _ :: #import "Basic";
+    using _ :: #import "File";
+
+    formatted_message := tprint(message, ..args);
+
+    builder: String_Builder;
+    append(*builder, formatted_message);
+    append(*builder, "\n\n");
+    if from_no_context || !context.stack_trace {
+        print_to_builder(*builder, "Stack trace not available%.\n", ifx from_no_context " (it was lost due to a #no_context call)");
+    } else {
+        append(*builder, "Stack trace:\n");
+        node := context.stack_trace;
+        while node {
+            if node.info print_to_builder(*builder, "%:%: %\n", node.info.location.fully_pathed_filename, node.line_number, node.info.name);
+            node = node.next;
+        }
+    }
+    crash_report := builder_to_string(*builder);
+
     // Log it in a crash report file next to the exe
-    exe_dir := String.path_strip_filename(System.get_path_of_running_executable());
-    crash_report_file_path := Basic.sprint("%/focus-crash-report.txt", exe_dir);
-    formatted_message := Basic.sprint(message, ..args);
-    File.write_entire_file(crash_report_file_path, formatted_message);
+    exe_dir := path_strip_filename(get_path_of_running_executable());
+    crash_report_file_path := tprint("%/focus-crash-report.txt", exe_dir);
+    write_entire_file(crash_report_file_path, crash_report);
+
+    // The crash report is overwritten every new crash, so we also print it to the session log for safekeeping.
+    // Unfortunately #no_context also strips us of the correct logger, so we can't always do that.
+    if !from_no_context then log_error(crash_report, flags = .TO_FILE_ONLY);
 
     // Show a Windows message box
     #if OS == .WINDOWS {
         W :: #import "Windows";
         W_Utf8 :: #import "Windows_Utf8";
-        W.MessageBoxW(null, W_Utf8.utf8_to_wide(formatted_message), W_Utf8.utf8_to_wide("Fatal Error"), W.MB_OK);
+        W.ShowCursor(1);
+        W.MessageBoxW(null, W_Utf8.utf8_to_wide_new(formatted_message,, allocator = temp), W_Utf8.utf8_to_wide_new("Fatal Error",, allocator = temp), W.MB_OK);
     }
 }
 

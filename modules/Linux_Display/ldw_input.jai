@@ -88,10 +88,10 @@ wl_key_repeat_cb :: (tid: Timer, user_data: *void) {
         return;
     }
 
-    handle_key_event(d, d.input_serial, d.key_to_repeat, wl_keyboard.key_state_pressed);
+    handle_key_event(d, d.input_serial, d.key_to_repeat, wl_keyboard.key_state_pressed, true);
 }
 
-handle_key_event :: (d: *Wayland_Display, serial: u32, key: u32, state: u32) {
+handle_key_event :: (d: *Wayland_Display, serial: u32, key: u32, state: u32, repeat := false) {
     utf32: u32;
     is_printable: bool;
     keycode: xkb_keycode_t = key + 8;
@@ -126,6 +126,7 @@ handle_key_event :: (d: *Wayland_Display, serial: u32, key: u32, state: u32) {
         event.key_code = x11_translate_key_code(keysym);
         d.base.input_button_states[event.key_code] = Input.Key_Current_State.END;
     }
+    event.repeat = repeat;
 
     array_add(*d.base.events_this_frame, event);
 
@@ -166,7 +167,10 @@ pointer_listener :: wl_pointer_listener.{
         }
     },
 
-    leave = (data: *void, self: *wl_pointer, serial: u32, surface: *wl_surface) -> void #c_call {},
+    leave = (data: *void, self: *wl_pointer, serial: u32, surface: *wl_surface) -> void #c_call {
+        d: *Wayland_Display = wl_proxy_get_user_data(self);
+        d.current_hovered_window = null;
+    },
 
     motion = (data: *void, self: *wl_pointer, time: u32, fx: wl_fixed_t, fy: wl_fixed_t) -> void #c_call {
         ctx: Context;
@@ -212,7 +216,9 @@ pointer_listener :: wl_pointer_listener.{
             d: *Wayland_Display = wl_proxy_get_user_data(self);
             sign := ifx (wl_fixed_to_int(value) < 0) then cast(s32)-1 else 1;
             delta := (WHEEL_DELTA / 2); // @TODO: this is set on a "feels good on my machine" basis, should be calculated some other way (perhaps based on the height of a line?)
-            d.pointer_axis_accumulator[axis] += d.pointer_axis_multiplier[axis] * sign * delta;
+            if !d.pointer_axis_accumulator[axis] {
+                d.pointer_axis_accumulator[axis] = d.pointer_axis_multiplier[axis] * sign * delta;
+            }
         }
     },
 
@@ -220,15 +226,22 @@ pointer_listener :: wl_pointer_listener.{
         ctx: Context;
         push_context ctx {
             d: *Wayland_Display = wl_proxy_get_user_data(self);
+            event: Input.Event;
             if d.pointer_axis_accumulator[0] {
-                event: Input.Event;
-                event.type = .MOUSE_WHEEL;
+                event.type = .MOUSE_V_WHEEL;
                 event.typical_wheel_delta = WHEEL_DELTA;
                 event.wheel_delta = d.pointer_axis_accumulator[0];
                 array_add(*d.base.events_this_frame, event);
-                d.base.mouse_delta_z += event.wheel_delta;
-
+                d.base.mouse_wheel_delta.vertical += event.wheel_delta;
                 d.pointer_axis_accumulator[0] = 0;
+            }
+            if d.pointer_axis_accumulator[1] {
+                event.type = .MOUSE_H_WHEEL;
+                event.typical_wheel_delta = WHEEL_DELTA;
+                event.wheel_delta = d.pointer_axis_accumulator[1];
+                array_add(*d.base.events_this_frame, event);
+                d.base.mouse_wheel_delta.horizontal += event.wheel_delta;
+                d.pointer_axis_accumulator[1] = 0;
             }
         }
     },
@@ -241,7 +254,9 @@ pointer_listener :: wl_pointer_listener.{
         ctx: Context;
         push_context ctx {
             d: *Wayland_Display = wl_proxy_get_user_data(self);
-            d.pointer_axis_accumulator[axis] += d.pointer_axis_multiplier[axis] * value120;
+            if !d.pointer_axis_accumulator[axis] {
+                d.pointer_axis_accumulator[axis] = d.pointer_axis_multiplier[axis] * value120;
+            }
         }
     },
 
@@ -258,31 +273,23 @@ pointer_listener :: wl_pointer_listener.{
 wl_display_poll :: (display: *Wayland_Display, timeout: s32) -> wayland_events := false, timer_events := false {
     wlfd := wl_display_get_fd(display.handle);
 
-    pfd: [2]pollfd;
+    pfd: [3]pollfd;
     pfd[0].fd = wlfd;
     pfd[0].events = POLLIN;
     pfd[1].fd = timers_epfd;
     pfd[1].events = POLLIN;
+    pfd[2].fd = display.base.loop_wakeup_event;
+    pfd[2].events = POLLIN;
 
-    ret := poll(pfd.data, 2, timeout);
+    ret := poll(pfd.data, xx pfd.count, timeout);
     if ret <= 0 return;
 
-    has_wayland_events := false;
-    has_timer_events := false;
-    for 0..1 {
-        if !pfd[it].revents {
-            continue;
-        }
-        if pfd[it].fd == wlfd {
-            has_wayland_events = true;
-            assert(pfd[it].revents == POLLIN);
-            continue;
-        }
+    has_wayland_events    := (pfd[0].revents & POLLIN) == POLLIN;
+    has_timer_events      := (pfd[1].revents & POLLIN) == POLLIN;
+    has_loop_wakeup_event := (pfd[2].revents & POLLIN) == POLLIN;
 
-        assert(pfd[it].fd == timers_epfd);
-        timers_tick();
-        has_timer_events = true;
-    }
+    if has_loop_wakeup_event  consume_loop_wakeup_event(display);
+    if has_timer_events       timers_tick();
 
     return has_wayland_events, has_timer_events;
 }

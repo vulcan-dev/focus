@@ -312,7 +312,7 @@ remove_crlf_in_place :: (bytes: *[] u8) {
         byte := <<cursor;
         if byte == #char "\r" {
             count := cursor - src;
-            memcpy(dst, src, count);
+            focus_memcpy(dst, src, count);
             dst += count;
             cursor += 1;
             src = cursor;
@@ -322,7 +322,7 @@ remove_crlf_in_place :: (bytes: *[] u8) {
     }
     // Copy the remaining bit
     count := cursor - src;
-    memcpy(dst, src, count);
+    focus_memcpy(dst, src, count);
 
     bytes.count = dst + count - bytes.data;
 }
@@ -456,8 +456,10 @@ tokenize_for_indentation :: (buffer: *Buffer) -> [] Indentation_Token /* temp */
         case .C;            return tokenize_c_like_lang_for_indentation(buffer, get_next_c_token);
         case .CSharp;       return tokenize_c_like_lang_for_indentation(buffer, get_next_csharp_token);
         case .Glsl;         return tokenize_c_like_lang_for_indentation(buffer, get_next_glsl_token);
+        case .Zig;          return tokenize_c_like_lang_for_indentation(buffer, get_next_zig_token);
         case .Html;         #through;
         case .Xml;          return tokenize_xml_for_indentation(buffer);
+        case .Lua;          return tokenize_lua_for_indentation(buffer);
         case .Odin;         return tokenize_odin_for_indentation(buffer);
     }
 
@@ -643,10 +645,12 @@ save_buffer :: (using buffer: *Buffer, buffer_id: s64) {
         error_when_saving = true;
     }
     remember_last_modtime_and_size(buffer);
+    if editors.active >= 0 && editors.active < open_editors.count then update_window_title(open_editors[editors.active].buffer_id);
 
     // The config will attempt to refresh again on a file watcher message, but it should exit early because it will be unchanged.
     // We're doing it here because this way we always refresh right away, without waiting for a message to wake us up
     if is_our_config_file(buffer.file.full_path) refresh_config(buffer.file.full_path);
+    if is_current_theme(buffer.file.full_path) refresh_current_theme();
 
     redraw_requested = true;
 }
@@ -696,18 +700,17 @@ delete_buffer_from_disk :: (using buffer: *Buffer) -> deleted: bool {
 }
 
 strip_trailing_whitespace :: (using buffer: *Buffer, buffer_id: s64) {
-    mark := get_temporary_storage_mark();
-    defer   set_temporary_storage_mark(mark);
+    auto_release_temp();
 
     b: String_Builder;
     b.allocator = temp;
     init_string_builder(*b, buffer_size = bytes.count + size_of(String_Builder.Buffer));
-    lines := split(cast(string) bytes, cast(u8) #char "\n");
+    lines := split(cast(string) bytes, cast(u8) #char "\n",, allocator = temp);
     for line, i : lines {
         append(*b, trim_right(line));
         if i < lines.count - 1 then append(*b, "\n");
     }
-    stripped := builder_to_string(*b, allocator = temp);
+    stripped := builder_to_string(*b,, allocator = temp);
 
     if stripped.count == bytes.count return;  // nothing stripped
 
@@ -728,7 +731,7 @@ strip_trailing_whitespace :: (using buffer: *Buffer, buffer_id: s64) {
     new_replace_edit(buffer, 0, xx bytes.count, cast(string) bytes, stripped);
 
     lock(*content_lock);
-    memcpy(bytes.data, stripped.data, stripped.count);
+    focus_memcpy(bytes.data, stripped.data, stripped.count);
     bytes.count = stripped.count;
     unlock(*content_lock);
 
@@ -920,6 +923,7 @@ refresh_buffer_from_disk :: (path: string) {
     }
 
     if is_our_config_file(path) refresh_config(path);
+    if is_current_theme(path)   refresh_current_theme();
 
     buffer_id, created := find_or_create_buffer(path);
     if created return;
@@ -1079,6 +1083,7 @@ unsaved_buffers_exist :: () -> bool {
 }
 
 remove_all_buffers :: () {
+    array_reset_keeping_memory(*most_recent_buffers);
     deinit(*buffers_table);
     for * open_buffers free_buffer(it);
     bucket_array_reset(*open_buffers);
@@ -1148,8 +1153,10 @@ get_highlighter_function :: (lang: Buffer.Lang) -> Highlighter_Function {
         case .C;            return highlight_c_syntax;
         case .CSharp;       return highlight_csharp_syntax;
         case .Focus_Config; return highlight_focus_config_syntax;
+        case .Focus_Theme;  return highlight_focus_config_syntax;
         case .Glsl;         return highlight_glsl_syntax;
         case .Golang;       return highlight_golang_syntax;
+        case .Lua;          return highlight_lua_syntax;
         case .Odin;         return highlight_odin_syntax;
         case .Python;       return highlight_python_syntax;
         case .RenPy;        return highlight_renpy_syntax;
@@ -1157,6 +1164,7 @@ get_highlighter_function :: (lang: Buffer.Lang) -> Highlighter_Function {
         case .Xml;          return highlight_xml_syntax;
         case .Worklog;      return highlight_worklog;
         case .Yang;         return highlight_yang_syntax;
+        case .Zig;          return highlight_zig_syntax;
     }
     return null;
 }
@@ -1267,7 +1275,7 @@ Buffer :: struct {
 
     content_lock: Mutex;  // must hold while modifying content (or reading in a non-main thread)
 
-    last_edit_time: Time;  // for creating new edit groups
+    last_edit_time: Apollo_Time;  // for creating new edit groups
 
     undos: [..] Edit_Group;
     redos: [..] Edit_Group;
@@ -1321,8 +1329,10 @@ Buffer :: struct {
         C;
         CSharp;
         Focus_Config;
+        Focus_Theme;
         Glsl;
         Golang;
+        Lua;
         Odin;
         Python;
         RenPy;
@@ -1330,6 +1340,7 @@ Buffer :: struct {
         Html;
         Worklog;
         Yang;
+        Zig;
     };
 }
 
@@ -1359,6 +1370,7 @@ Buffer_Region :: struct {
     kind: Kind;
 
     Kind :: enum u8 {
+        none :: 0;
         error;
         warning;
         success;

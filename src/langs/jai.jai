@@ -9,20 +9,19 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
         if token.type == .eof break;
 
         // Maybe retroactively highlight a function
+        before_prev, prev := tokenizer.last_tokens[0], tokenizer.last_tokens[1];
         if token.type == .punctuation && token.punctuation == .l_paren {
-            before_prev, prev := tokenizer.last_tokens[0], tokenizer.last_tokens[1];
             if prev.type == .identifier {
                 // Handle "func("
-                memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
+                memset(colors.data + prev.start, xx Color.CODE_FUNCTION, prev.len);
             } else if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
                 // Handle "func :: ("
-                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+                memset(colors.data + before_prev.start, xx Color.CODE_FUNCTION, before_prev.len);
             }
-        } else if token.type == .keyword && token.keyword == .kw_inline {
-            // Handle "func :: inline"
-            before_prev, prev := tokenizer.last_tokens[0], tokenizer.last_tokens[1];
+        } else if (token.type == .keyword && token.keyword == .kw_inline) || (token.type == .compiler_directive && token.compiler_directive == .directive_bake_arguments) {
+            // Handle "func :: inline" and "func :: #bake_arguments"
             if before_prev.type == .identifier && prev.type == .operation && prev.operation == .double_colon {
-                memset(colors.data + before_prev.start, xx Code_Color.FUNCTION, before_prev.len);
+                memset(colors.data + before_prev.start, xx Color.CODE_FUNCTION, before_prev.len);
             }
         }
 
@@ -174,8 +173,7 @@ get_next_token :: (using tokenizer: *Jai_Tokenizer) -> Token {
 parse_identifier :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     token.type = .identifier;
 
-    mark := get_temporary_storage_mark();
-    defer   set_temporary_storage_mark(mark);
+    auto_release_temp();
 
     identifier_str := read_identifier_string_tmp(tokenizer);
 
@@ -185,12 +183,32 @@ parse_identifier :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
         if ok { token.type = kw_token.type; token.keyword = kw_token.keyword; return; }
     }
 
-    // Check for here-string
-    if last_tokens[1].type == .compiler_directive && last_tokens[1].compiler_directive == .directive_string {
+    // Check for here-string and directive modifiers
+    prev, before_prev := last_tokens[1], last_tokens[0];
+    if prev.type == .compiler_directive && prev.compiler_directive == .directive_string {
         token.type = .here_string;
         end := find_index_from_left(buf, identifier_str, start_index = t - buf.data);
         if end < 0 { t = max_t; return; }
         t = buf.data + end + identifier_str.count;
+    } else if prev.type == .punctuation && prev.punctuation == .comma {
+        is_modifier := false;
+        if before_prev.type == {
+            case .compiler_directive;
+                if before_prev.compiler_directive == {
+                    case .directive_type;           is_modifier = array_find(string.["isa", "distinct"], identifier_str);
+                    case .directive_import;         is_modifier = array_find(string.["file", "dir", "string"], identifier_str);
+                    case .directive_insert;         is_modifier = array_find(string.["scope"], identifier_str);
+                    case .directive_run;            is_modifier = array_find(string.["stallable"], identifier_str);
+                    case .directive_library;        is_modifier = array_find(string.["no_static_library", "no_dll", "system", "link_always"], identifier_str);
+                    case .directive_system_library; is_modifier = array_find(string.["no_static_library", "no_dll", "link_always"], identifier_str);
+                }
+            case .keyword;
+                if before_prev.keyword == {
+                    case .kw_using;   is_modifier = array_find(string.["only", "except", "map"], identifier_str);
+                    case .kw_cast;    is_modifier = array_find(string.["no_check", "trunc", "force"], identifier_str);
+                }
+        }
+        if is_modifier then token.type = .modifier;
     }
 }
 
@@ -254,8 +272,7 @@ parse_compiler_directive :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
 
     start_offset := cast(s32) (start_t - buf.data);
 
-    mark := get_temporary_storage_mark();
-    defer   set_temporary_storage_mark(mark);
+    auto_release_temp();
 
     directive_str := read_identifier_string_tmp(tokenizer);
 
@@ -419,8 +436,7 @@ parse_caret :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
 }
 
 parse_note :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
-    token.type = .punctuation;
-    token.punctuation = .note;
+    token.type = .note;
 
     t += 1;
     while t < max_t && is_alnum(<< t) t += 1;
@@ -617,6 +633,7 @@ Token :: struct {
         identifier;
         string_literal;
         here_string;
+        note;
         number;
         comment;
         multiline_comment;
@@ -627,32 +644,35 @@ Token :: struct {
         type_keyword;
         value_keyword;
         compiler_directive;
+        modifier;
         invalid;
     }
 }
 
 // Must match the order of the types in the enum
-COLOR_MAP :: Code_Color.[
-    .COMMENT,       // eof - obviously not used
-    .DEFAULT,       // identifier
-    .STRING,        // string_literal
-    .STRING,        // here_string
-    .VALUE,         // number
-    .COMMENT,       // comment
-    .COMMENT,       // multiline_comment
-    .OPERATION,     // operation
-    .PUNCTUATION,   // punctuation
-    .KEYWORD,       // keyword
-    .KEYWORD,       // modifier_keyword
-    .TYPE,          // type_keyword
-    .VALUE_KEYWORD, // value_keyword
-    .KEYWORD,       // compiler_directive
-    .ERROR,         // invalid
+COLOR_MAP :: Color.[
+    .CODE_COMMENT,       // eof - obviously not used
+    .CODE_DEFAULT,       // identifier
+    .CODE_STRING,        // string_literal
+    .CODE_STRING,        // here_string
+    .CODE_OPERATION,     // note
+    .CODE_VALUE,         // number
+    .CODE_COMMENT,       // comment
+    .CODE_COMMENT,       // multiline_comment
+    .CODE_OPERATION,     // operation
+    .CODE_PUNCTUATION,   // punctuation
+    .CODE_KEYWORD,       // keyword
+    .CODE_KEYWORD,       // modifier_keyword
+    .CODE_TYPE,          // type_keyword
+    .CODE_VALUE,         // value_keyword
+    .CODE_KEYWORD,       // compiler_directive
+    .CODE_KEYWORD,       // modifier
+    .CODE_ERROR,         // invalid
 ];
 
 PUNCTUATION :: string.[
     "dollar", "semicolon", "l_paren", "r_paren", "l_brace", "r_brace", "l_bracket", "r_bracket",
-    "period", "comma", "note",
+    "period", "comma",
 ];
 
 OPERATIONS :: string.[
@@ -664,14 +684,14 @@ OPERATIONS :: string.[
 ];
 
 KEYWORDS :: string.[
-    "align_of", "break", "case", "cast", "code_of", "continue", "defer", "else", "enum", "enum_flags", "for",
+    "break", "case", "cast", "code_of", "continue", "defer", "else", "enum", "enum_flags", "for", "initializer_of",
     "if", "ifx", "is_constant", "inline", "push_context", "return", "size_of", "struct", "then", "type_info", "type_of",
-    "union", "using", "while", "xx", "operator", "remove",
+    "union", "using", "while", "xx", "operator", "remove", "interface", "no_inline",
 ];
 
 TYPE_KEYWORDS :: string.[
     "__reg", "bool", "float", "float32", "float64", "int", "reg", "s16", "s32", "s64", "s8", "string",
-    "u16", "u32", "u64", "u8", "void", "v128", "Any", "Code",
+    "u16", "u32", "u64", "u8", "void", "v128", "Any", "Code", "Type",
 ];
 
 VALUE_KEYWORDS :: string.[
@@ -687,17 +707,7 @@ COMPILER_DIRECTIVES :: string.[
     "place", "placeholder", "poke_name", "procedure_of_call", "program_export", "run", "runtime_support",
     "scope_export", "scope_file", "scope_module", "specified", "string", "symmetric", "this", "through", "type",
     "type_info_no_size_complaint", "type_info_none", "type_info_procedures_are_void_pointers",
-    "compile_time", "no_debug", "procedure_name",
-];
-
-// TODO: implement
-MODIFIERS :: string.[
-    "isa", "distinct",  // type
-    "only", "except", "map",  // using
-    "no_check", "truncate", "force",  // cast
-    "file", "dir", "string",  // import
-    "scope",  // insert
-    "stallable",  // run
+    "compile_time", "no_debug", "procedure_name", "discard", "entry_point",
 ];
 
 #insert -> string {
@@ -771,6 +781,3 @@ MAX_DIRECTIVE_LENGTH :: #run -> s32 {
     for COMPILER_DIRECTIVES { if it.count > result then result = it.count; }
     return xx result;
 }
-
-
-#import "Hash_Table";

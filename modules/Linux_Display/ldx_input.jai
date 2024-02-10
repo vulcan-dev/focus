@@ -19,6 +19,10 @@ x11_translate_key_code :: (key: X11.KeySym) -> Input.Key_Code {
         return ENTER;
     if (key == X11.XK_Control_L) || (key == X11.XK_Control_R)
         return CTRL;
+    if key == X11.XK_Alt_L
+        return .ALT;
+    if (key == X11.XK_Meta_L) || (key == X11.XK_Meta_R)
+        return .META;
     if key == X11.XK_BackSpace
         return BACKSPACE;
     if key == X11.XK_Delete || key == X11.XK_KP_Delete
@@ -123,12 +127,14 @@ x11_wait_for_events :: (display: *Display) {
 
         if needs_flush X11.XFlush(x11_display.handle);
 
-        pfd: [2]pollfd;
+        pfd: [3]pollfd;
         pfd[0].fd = x11_display.file_descriptor;
         pfd[0].events = POLLIN;
         pfd[1].fd = timers_epfd;
         pfd[1].events = POLLIN;
-        result := poll(pfd.data, 2, -1);
+        pfd[2].fd = display.base.loop_wakeup_event;
+        pfd[2].events = POLLIN;
+        result := poll(pfd.data, xx pfd.count, -1);
 
         if result < 0 {
             error := errno();
@@ -148,6 +154,11 @@ x11_wait_for_events :: (display: *Display) {
                 log_error("Unknown error happened while waiting on X11 file descriptor. Error code: %\n", error);
             }
             return;
+        }
+
+        if pfd[2].revents & POLLIN {
+            consume_loop_wakeup_event(display);
+            break;
         }
 
         if pfd[1].revents & POLLIN {
@@ -192,7 +203,7 @@ x11_update_window_events :: (display: *Display) {
     // that doesn't expect other events, or at most after a second,
     // so some buggy program doesn't hang the editor while handling our clipboard response.
     expect_more_events := false;
-    start_time := get_time();
+    start_time := seconds_since_init();
     elapsed_time := start_time;
 
     while X11.XPending(x11_display.handle) || (expect_more_events && elapsed_time < 1.0) {
@@ -201,7 +212,7 @@ x11_update_window_events :: (display: *Display) {
             expect_more_events = x11_handle_event(x11_display, *xev);
             timers_tick();
         }
-        elapsed_time = get_time() - start_time;
+        elapsed_time = seconds_since_init() - start_time;
     }
 }
 
@@ -321,19 +332,24 @@ x11_handle_event :: (x11_display: *X11_Display, xev: *X11.XEvent) -> expect_more
             event: Input.Event;
             button := xev.xbutton.button;
 
-            //  - buttons 6/7 will be used for the forward/backward direction of the second scroll wheel
-            // But we don't handle horizontal scroll for now
-            if button > 5 return;
+            if button == {
+                case 4; #through;
+                case 5;
+                    event.type = .MOUSE_V_WHEEL;
+                    event.typical_wheel_delta = WHEEL_DELTA;
+                    event.wheel_delta = WHEEL_DELTA * (ifx (button & 0x01) then cast(s32) -1 else 1);
+                    array_add(*x11_display.base.events_this_frame, event);
+                    x11_display.base.mouse_wheel_delta.vertical += event.wheel_delta;
+                    return;
 
-            if button >= 4 {
-                // Buttons 4 and above are 'synthetic' events for scroll wheels:
-                //  - 4/5 will be used for the forward/backward direction of the first scroll wheel
-                event.type = .MOUSE_WHEEL;
-                event.typical_wheel_delta = WHEEL_DELTA;
-                event.wheel_delta = WHEEL_DELTA * (ifx (button & 0x01) then cast(s32) -1 else 1);
-                array_add(*x11_display.base.events_this_frame, event);
-                x11_display.base.mouse_delta_z += event.wheel_delta;
-                return;
+                case 6; #through;
+                case 7;
+                    event.type = .MOUSE_H_WHEEL;
+                    event.typical_wheel_delta = WHEEL_DELTA;
+                    event.wheel_delta = WHEEL_DELTA * (ifx (button & 0x01) then cast(s32) -1 else 1);
+                    array_add(*x11_display.base.events_this_frame, event);
+                    x11_display.base.mouse_wheel_delta.horizontal += event.wheel_delta;
+                    return;
             }
 
             event.type = .KEYBOARD;
@@ -691,14 +707,14 @@ get_selection :: (x11_display: *X11_Display, from: X11.Window, prop: X11.Atom, i
     X11.XDeleteProperty(display, insert, prop);
 
     /* @Cleanup: Get rid of fd_set stuff.
-    time_start := get_time();
+    time_start := seconds_since_init();
     while true {
         r: fd_set;
         xe: XEvent;
         if XCheckMaskEvent(display, PropertyChangeMask, *xe) {
             if xe.type == PropertyNotify && xe.xproperty.state == PropertyNewValue {
                 // time between arrivals of data
-                time_start = get_time();
+                time_start = seconds_since_init();
                 if paste_property(display, from, insert, prop, True)  break;
             }
         } else {
@@ -708,7 +724,7 @@ get_selection :: (x11_display: *X11_Display, from: X11.Window, prop: X11.Atom, i
 
             if FD_ISSET(ConnectionNumber(display), *r)  continue;
         }
-        end := get_time();
+        end := seconds_since_init();
 
         // no data for five seconds, so quit
         if end - start > 5000000  return false;
@@ -900,7 +916,7 @@ maybe_handle_xdnd_drop_events :: (x11_display: *X11_Display, xevent: *X11.XEvent
 
             file_name := "";
             // Heap allocated like on Windows.
-            file_name_bytes := cast(*u8) alloc(i, __temporary_allocator);
+            file_name_bytes := cast(*u8) alloc(i,, allocator = temp);
             memcpy(file_name_bytes, p.data, i);
             p.data = p.data + i + 2;
             p.count = p.count - i - 2;

@@ -1,4 +1,4 @@
-[1]  # Version number. Do not delete.
+[2]  # Version number. Do not delete.
 
 [[workspace]]
 
@@ -51,18 +51,48 @@ scroll_beyond_last_line:                true
 double_shift_to_search_in_workspace:    false
 can_cancel_go_to_line:                  true
 copy_whole_line_without_selection:      false
-max_entries_in_open_file_dialog:        2000
 tab_size:                               4
 line_height_scale_percent:              120
 max_editor_width:                       -1
 editor_history_size:                    1024
 line_wrap_is_on_by_default:             false
 show_line_numbers:                      false
-hide_mouse_when_typing:                 true
+hide_mouse_when_typing:                 false
 highlight_line_with_cursor:             false
 draw_indent_guides:                     false
 auto_surround_with_brackets_and_quotes: false
 auto_close_brackets:                    false
+show_cursors_off_screen:                true
+persist_local_search_results:           false  # if true, search results will stay highlighted and you have to dismiss them using the `escape` action
+
+build_panel_stays_in_one_place:         false  # if true, the build panel will flip to the inactive pane in two pane layouts
+build_panel_line_wrap_always_on:        true
+build_panel_width_percent:              50
+build_panel_height_percent:             50
+
+
+# [[build commands]]
+# build_working_dir:      <build working dir for all commands>
+# open_panel_on_build:    true  #  <- any settings specified here will apply to all commands unless overridden
+# close_panel_on_success: false
+# clear_build_output_before_running: false
+
+# [Debug Build And Run]   # <- command name. Can be arbitrary
+# build_command:          jai main.jai  # should be an executable or a script
+# build_working_dir:      <build working dir for this command only>
+# timeout_in_seconds:     5             # if you don't want a timeout, don't specify it
+# run_command:            test          # will be run if build succeeds
+# run_working_dir:        /path/to/cmd  # working dir for the run command
+# key_binding:            F5
+
+# [Run]                   # <- You could have commands that don't build anything and just run something
+# run_command:            test
+# run_working_dir:        /Users/user/test
+# key_binding:            Ctrl-F5
+
+# [Release]
+# build_command:          jai first.jai - release
+# key_binding:            F9
 
 
 [[keymap]]
@@ -71,204 +101,205 @@ auto_close_brackets:                    false
 
 [editors]   # <- this means that the following key combos will apply only when editing text
 
-# Key combination           Action
+# Key combination                 Action
 
-Cmd-D                       select_word_or_create_another_cursor
-Ctrl-Shift-A                select_all_occurrences
+Cmd-D                           select_word_or_create_another_cursor
+Cmd-Shift-A                     select_all_occurrences
 
-Cmd-Shift-D                 duplicate_lines
+Cmd-Shift-D                     duplicate_lines
 
 # These shortcuts can be annoying to accidentally use, so they are commented out by default
-# Shift-Backspace             delete_line_and_go_up
-# Shift-Delete                delete_line
+# Shift-Backspace                 delete_line_and_go_up
+# Shift-Delete                    delete_line
 
-Cmd-K                       delete_to_end_of_line
-Cmd-Delete                  delete_to_end_of_line
-Cmd-Backspace               delete_to_start_of_line
+Cmd-K                           delete_to_end_of_line
+Cmd-Delete                      delete_to_end_of_line
+Cmd-Backspace                   delete_to_start_of_line
 
-Alt-ArrowUp                 move_selected_lines_up
-Alt-ArrowDown               move_selected_lines_down
+Opt-ArrowUp                     move_selected_lines_up
+Opt-ArrowDown                   move_selected_lines_down
 
-Cmd-J                       join_lines
-Cmd-Shift-J                 join_lines_no_spaces_in_between
+Cmd-J                           join_lines
+Cmd-Shift-J                     join_lines_no_spaces_in_between
 
-Alt-Tab                     autoindent_region
-Tab                         indent_or_go_to_next_tabstop
-Shift-Tab                   unindent
+Tab                             indent_or_go_to_next_tabstop
+Shift-Tab                       unindent
 
-Cmd-]                       indent
-Cmd-[                       unindent
+Cmd-]                           indent
+Cmd-[                           unindent
 
-Cmd-S                       save
-Cmd-Shift-S                 save_as
+Cmd-S                           save
+Cmd-Shift-S                     save_as
 
-Cmd-Alt-Minus               move_to_previous_editor_history
-Cmd-Alt-Plus                move_to_next_editor_history
+Cmd-Opt-Minus                   move_to_previous_editor_history
+Cmd-Opt-Plus                    move_to_next_editor_history
 
-Cmd-Shift-Minus             move_to_previous_buffer
-Cmd-Shift-Plus              move_to_next_buffer
+Cmd-Shift-Minus                 move_to_previous_buffer
+Cmd-Shift-Plus                  move_to_next_buffer
 
-Cmd-/                       toggle_comment
-Cmd-L                       select_line
+Cmd-/                           toggle_comment
+Cmd-L                           select_line
 
-Ctrl-Cmd-ArrowUp            scroll_viewport_up
-Ctrl-Cmd-ArrowDown          scroll_viewport_down
-Ctrl-Cmd-ArrowLeft          scroll_viewport_left
-Ctrl-Cmd-ArrowRight         scroll_viewport_right
+Ctrl-Cmd-ArrowUp                scroll_viewport_up
+Ctrl-Cmd-ArrowDown              scroll_viewport_down
+Ctrl-Cmd-ArrowLeft              scroll_viewport_left
+Ctrl-Cmd-ArrowRight             scroll_viewport_right
 
-Cmd-Shift-C                 move_cursor_to_viewport_center
+Cmd-Shift-C                     move_cursor_to_viewport_center
 
-{Shift}-Ctrl-ArrowUp        move_up_to_empty_line
-{Shift}-Ctrl-ArrowDown      move_down_to_empty_line
+{Shift}-Ctrl-Opt-Cmd-ArrowUp    move_up_to_empty_line
+{Shift}-Ctrl-Opt-Cmd-ArrowDown  move_down_to_empty_line
 
-Escape                      remove_additional_cursors
-Alt-Shift-I                 add_cursors_to_line_ends
-Alt-Shift-Ctrl-I            add_cursors_to_line_starts
+Opt-Shift-I                     add_cursors_to_line_ends
+Opt-Shift-Ctrl-I                add_cursors_to_line_starts
 
-Enter                       break_line
-Cmd-Enter                   new_line_below_without_breaking
-Cmd-Shift-Enter             new_line_above_without_breaking
+Enter                           break_line
+Cmd-Enter                       new_line_below_without_breaking
+Cmd-Shift-Enter                 new_line_above_without_breaking
 
-NumpadEnter                 break_line
-Cmd-NumpadEnter             new_line_below_without_breaking
-Cmd-Shift-NumpadEnter       new_line_above_without_breaking
+NumpadEnter                     break_line
+Cmd-NumpadEnter                 new_line_below_without_breaking
+Cmd-Shift-NumpadEnter           new_line_above_without_breaking
 
-Cmd-1                       switch_to_left_editor
-Cmd-2                       switch_to_right_editor
-Cmd-,                       switch_to_other_editor
-Cmd-Shift-,                 duplicate_editor
+Cmd-1                           switch_to_left_editor
+Cmd-2                           switch_to_right_editor
+Cmd-,                           switch_to_other_editor
+Cmd-Shift-,                     duplicate_editor
 
-Ctrl-Cmd-Shift-ArrowLeft    move_editor_to_the_left
-Ctrl-Cmd-Shift-ArrowRight   move_editor_to_the_right
+Ctrl-Cmd-Shift-ArrowLeft        move_editor_to_the_left
+Ctrl-Cmd-Shift-ArrowRight       move_editor_to_the_right
 
-Cmd-N                       create_new_file
-Cmd-Shift-N                 create_new_file_on_the_side
+Cmd-N                           create_new_file
+Cmd-Shift-N                     create_new_file_on_the_side
 
-Alt-Shift-ArrowUp           create_cursor_above
-Alt-Shift-ArrowDown         create_cursor_below
-Alt-A                       align_cursors
+Opt-Shift-ArrowUp               create_cursor_above
+Opt-Shift-ArrowDown             create_cursor_below
+Opt-Cmd-A                       align_cursors
 
-Alt-Z                       toggle_line_wrap
+Opt-Cmd-Z                       toggle_line_wrap
 
 
 [open file dialog]
 
-Escape                      close_dialog
+Enter                           open_entry_in_place
+Cmd-1                           open_entry_on_the_left
+Cmd-Enter                       open_entry_on_the_side
+Cmd-2                           open_entry_on_the_right
+Shift-Enter                     open_entry_in_explorer
 
-Enter                       open_entry_in_place
-Cmd-Enter                   open_entry_on_the_side
-Cmd-1                       open_entry_on_the_left
-Cmd-2                       open_entry_on_the_right
-Shift-Enter                 open_entry_in_explorer
+Tab                             open_directory
 
-Tab                         open_directory
-
-Backspace                   pop_directory
+Backspace                       pop_directory
 
 
 [search dialog]
 
-Escape                      close_dialog
+Enter                           open_entry_in_place
+Cmd-Enter                       open_entry_on_the_side
+Cmd-1                           open_entry_on_the_left
+Cmd-2                           open_entry_on_the_right
 
-Enter                       open_entry_in_place
-Cmd-Enter                   open_entry_on_the_side
-Cmd-1                       open_entry_on_the_left
-Cmd-2                       open_entry_on_the_right
+Shift-Enter                     move_up  # an alternative way to move
 
-Shift-Enter                 move_up  # an alternative way to move
-
-Cmd-Alt-C                   toggle_case_sensitive
-Cmd-Alt-W                   toggle_whole_word
-Cmd-Alt-R                   toggle_regex_search
+Cmd-Opt-C                       toggle_case_sensitive
+Cmd-Opt-W                       toggle_whole_word
+Cmd-Opt-R                       toggle_regex_search
 
 [common]
 
 # Common key combos may be used as a fallback if they are not defined in more specific sections.
 # For example, if "move_up" is not defined in [editors], the one in the [common] section will be matched.
 
-Cmd-Shift-P                 show_commands
+Cmd-Shift-P                     show_commands
 
-Cmd-F                       search_in_buffer
-Cmd-Alt-F                   search_in_buffer_dropdown_mode
-Cmd-Shift-F                 search_in_project
+Cmd-F                           search_in_buffer
+Cmd-Opt-F                       search_in_buffer_dropdown_mode
+Cmd-Shift-F                     search_in_project
 
-Cmd-Alt-P                   switch_to_project
+Cmd-Opt-P                       switch_to_project
 
-Cmd-P                       show_open_file_dialog_in_search_mode
-Cmd-O                       show_open_file_dialog_in_navigate_mode
-Cmd-Shift-O                 show_open_file_dialog_in_navigate_mode_from_root
+Cmd-P                           open_file_by_name
+Cmd-O                           navigate_to_file
+Cmd-Shift-O                     navigate_to_file_from_root
+Ctrl-Tab                        switch_between_open_files
 
-Cmd-G                       go_to_line
+Cmd-G                           go_to_line
 
-Cmd-C                       copy
-Cmd-X                       cut
-Cmd-V                       paste
+Cmd-C                           copy
+Cmd-X                           cut
+Cmd-V                           paste
 
-Cmd-Z                       undo
-Cmd-Shift-Z                 redo
+Cmd-Z                           undo
+Cmd-Shift-Z                     redo
 
-Cmd-D                       select_word
-Cmd-A                       select_all
+Cmd-D                           select_word
+Cmd-A                           select_all
 
-Cmd-W                       close_current_editor
-Cmd-Shift-W                 close_other_editor
+Cmd-W                           close_current_editor
+Cmd-Shift-W                     close_other_editor
 
-Cmd-Shift-L                 toggle_expand
+Escape                          escape  # combines close_dialog and remove_additional_cursors
 
-F11                         toggle_fullscreen
+Cmd-Shift-L                     toggle_expand
+
+Cmd-B                           toggle_build_panel
+
+# Ctrl-Cmd-F will always toggle fullscreen on macOS (like most other apps), but you can uncomment this to use something else.
+# F11                             toggle_fullscreen
 
 # {Shift}- means shift is optional, the key combination will still be matched.
-{Shift}-ArrowUp             move_up
-{Shift}-Alt-Cmd-ArrowUp     move_up_fast
-{Shift}-PageUp              move_up_one_page
+# NOTE: in this editor the Shift key is hard-coded to extend selection when held
+{Shift}-ArrowUp                 move_up
+{Shift}-Opt-Cmd-ArrowUp         move_up_fast
+{Shift}-PageUp                  move_up_one_page
 
-{Shift}-ArrowDown           move_down
-{Shift}-Alt-Cmd-ArrowDown   move_down_fast
-{Shift}-PageDown            move_down_one_page
+{Shift}-ArrowDown               move_down
+{Shift}-Opt-Cmd-ArrowDown       move_down_fast
+{Shift}-PageDown                move_down_one_page
 
-{Shift}-ArrowLeft           move_left
-{Shift}-Alt-ArrowLeft       move_left_by_word
-{Shift}-Alt-Cmd-ArrowLeft   move_left_by_word_ends
-{Shift}-Cmd-ArrowLeft       jump_to_line_start
+{Shift}-ArrowLeft               move_left
+{Shift}-Opt-ArrowLeft           move_left_by_word
+{Shift}-Opt-Cmd-ArrowLeft       move_left_by_word_ends
+{Shift}-Cmd-ArrowLeft           jump_to_line_start
 
-{Shift}-ArrowRight          move_right
-{Shift}-Alt-ArrowRight      move_right_by_word
-{Shift}-Alt-Cmd-ArrowRight  move_right_by_word_ends
-{Shift}-Cmd-ArrowRight      jump_to_line_end
+{Shift}-ArrowRight              move_right
+{Shift}-Opt-ArrowRight          move_right_by_word
+{Shift}-Opt-Cmd-ArrowRight      move_right_by_word_ends
+{Shift}-Cmd-ArrowRight          jump_to_line_end
 
-{Shift}-Cmd-ArrowUp         jump_to_file_start
-{Shift}-Cmd-ArrowDown       jump_to_file_end
+{Shift}-Cmd-ArrowUp             jump_to_file_start
+{Shift}-Cmd-ArrowDown           jump_to_file_end
 
-{Shift}-Home                jump_to_line_start
-{Shift}-End                 jump_to_line_end
-{Shift}-Cmd-Home            jump_to_file_start
-{Shift}-Cmd-End             jump_to_file_end
+{Shift}-Home                    jump_to_line_start
+{Shift}-End                     jump_to_line_end
+{Shift}-Cmd-Home                jump_to_file_start
+{Shift}-Cmd-End                 jump_to_file_end
 
-{Shift}-Backspace           delete_left_char
-{Shift}-Delete              delete_right_char
-{Shift}-Alt-Backspace       delete_word_left_no_underscore
-{Shift}-Alt-Delete          delete_word_right_no_underscore
-{Shift}-Alt-Cmd-Backspace   delete_word_left
-{Shift}-Alt-Cmd-Delete      delete_word_right
+{Shift}-Backspace               delete_left_char
+{Shift}-Delete                  delete_right_char
+{Shift}-Opt-Backspace           delete_word_left_no_underscore
+{Shift}-Opt-Delete              delete_word_right_no_underscore
+{Shift}-Opt-Cmd-Backspace       delete_word_left
+{Shift}-Opt-Cmd-Delete          delete_word_right
 
-Cmd-Plus                    increase_font_size
-Cmd-Minus                   decrease_font_size
-Cmd-0                       reset_font_size_to_default
-Cmd-MouseMiddle             reset_font_size_to_default
+Cmd-Plus                        increase_font_size
+Cmd-Minus                       decrease_font_size
+Cmd-0                           reset_font_size_to_default
+Cmd-MouseMiddle                 reset_font_size_to_default
 
 
 [[style]]
 
-[user interface]
+[fonts]
 font:       default
 font_size:  14
 
 [colors]
-background:                             15212AFF
-background_dark:                        10191FFF
-background_highlight:                   18262FFF
-background_light:                       1A2831FF
-background_bright:                      21333FFF
+background0:                            15212AFF
+background1:                            10191FFF
+background2:                            18262FFF
+background3:                            1A2831FF
+background4:                            21333FFF
 selection_active:                       1C4449FF
 selection_inactive:                     1C44497F
 selection_highlight:                    FCEDFC26
@@ -288,6 +319,7 @@ list_cursor:                            33CCCC4C
 shadow_dark:                            0E161C7F
 shadow_transparent:                     0E161C00
 text_input_label:                       3B4450FF
+char_under_cursor:                      FFFFFFFF
 
 ui_default:                             BFC9DBFF
 ui_dim:                                 87919DFF
@@ -308,13 +340,14 @@ code_string:                            D4BC7DFF
 code_value:                             D699B5FF
 code_highlight:                         D89B75FF
 code_error:                             FF0000FF
+code_warning:                           E4D97DFF
 code_keyword:                           E67D74FF
 
 region_scope_export:                    15212AFF
 region_scope_file:                      131C22FF
 region_scope_module:                    1A2831FF
-region_header:                          30394F4C
-region_success:                         227722FF
+region_header:                          1A5152FF
+region_success:                         226022FF
 region_warning:                         986032FF
 region_error:                           772222FF
 
@@ -322,3 +355,4 @@ build_panel_background:                 1A2831FF
 build_panel_scrollbar:                  33CCCC19
 build_panel_scrollbar_hover:            33CCCC4C
 build_panel_scrollbar_background:       10191F4C
+build_panel_title_bar:                  1C303AFF

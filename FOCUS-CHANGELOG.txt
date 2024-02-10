@@ -1,17 +1,12 @@
 # ROUGH ROADMAP
 
-- A simple build system to launch commands from the editor
-- Config migration system to support changes to the config file across versions
-- Open file dialog improvements (better search)
 - Workspace search improvements (the ability to filter additionally by filename)
-- Language highlighting config files
+- Settings per file type
 - Add the ability to assign syntax to a buffer
+- Basic language definition files for the highlighting of languages we don't yet support
 - Config files for directories (i.e. adding a .focus-config file to your directory and have Focus load it)
-- Improve smooth scrolling for fancy mice
 - Identifier search
 - A little bit of semantic highlighting for Jai
-- Settings per file type
-- Custom title bar on Windows
 - Backup unsaved changes
 - Proper highlighting for C++
 - ...
@@ -25,6 +20,54 @@
 # Main Git Branch
 
 + New features:
+    + New build option: `clear_build_output_before_running`. Set to `true` to clear the build output window every time a command is run.
+    + macOS: `Opt` is now allowed in keybinds rather than `Alt`.
+    + macOS: colored title bars are now used by default
++ Bug fixes:
+    + macOS: added `NSHighResolutionCapable` to `Info.plist` which should fix blurry rendering when installing Focus via the `.dmg` package.
+    + macOS: keyboard shortcuts should now work correctly on non-QWERTY layouts (https://github.com/focus-editor/focus/issues/29)
+        - NOTE: key composition still does not work correctly, this fix is only about the base keyboard layout being respected
+    + Fixed a crash when attempting to override key mappings in a project config
++ Other changes:
+    + macOS: Installing the editor from the `.dmg` package will register it as a handler for text files. This means that:
+        1. you will see Focus as an entry in the "Open With" list in the context menu for text files in Finder
+        2. you can use Focus to open files from the terminal by running `open -a Focus file`
+    + macOS: Some default keyboard shortcuts were changed to remove conflicts with system shortcuts.
+    + macOS: The oldest OS that can launch Focus is now macOS 10.13 High Sierra.
+
+
+# RELEASES ==================================================================
+
+
+# Version 0.3.1
+
++ New features:
+    + New options: `save_current_buffer_on_build` and `save_all_file_backed_buffers_on_build`. Enable to auto-save files before running build commands (thanks @jlami)
+    + Zig highlighting
++ Bug fixes:
+    + Previewing themes will now change window border color as well as it should (thanks @jmpstar)
+    + Regex search should no longer crash the editor on certain inputs
+    + Close current editor when animations are disabled should now focus the remaining editor
+    + Binary files should now be auto-ignored again
+    + Fixed a memcpy-related memory corruption bug which manifested in some rare Linux distros
++ Other changes:
+    + Various theme improvements (thanks @jmpstar, @Leonader, @maxamundsen)
+    + Crash reports now print stack traces in release mode where possible (thanks @Sanian-Creations)
+    + Upgraded to Jai 0.1.83+ (thanks @valignatev)
+    + C highlighting improvements
+    + Linux: the editor now uses libxcb to interact with an X11 server by default. The old X11 backend (Xlib) is still around and can be activated by running the editor with `FOCUS_LD_BACKEND=x11` set in the environment
+        + NOTE: the xcb backend is currently missing drag-and-drop support. If that is important to you please use the old Xlib backend as described above.
+    + Platform support enchancements for macOS:
+        + the editor no longer consumes CPU when idle
+        + implemented the refresh timer (2024, year of the blinking cursor)
+        + smoother trackpad scrolling
+        + the `maximize_on_start` option now actually maximizes the main window instead of making it full-screen
+
+
+# Version 0.3.0
+
++ New features:
+    + An automatic config migration system. All configs will be bumped to version [2], with new things added or renamed where needed.
     + Windows 11+: New config option: `colored_titlebar`. Sets the color of the title bar to the background color (thanks @amasondev)
     + New option: `hide_mouse_when_typing` (currently Windows/Mac only). Set to `true` to hide the mouse cursor when entering text (thanks @amasondev)
     + New commands: `add_cursors_to_line_ends` (Alt-Shift-I) and `add_cursors_to_line_starts` (Alt-Shift-Ctrl-I)
@@ -34,19 +77,24 @@
     + New command: `toggle_fullscreen`. Defaults to F11 (thanks @ustance)
     + New command: `close_project`. Can be used to (surprise!) close the active project
     + New command: `swap_selections`. Can swap two selected pieces of text (thanks @hfr4)
+    + New command: `escape`. Tries to close dialogs, remove additional cursors, etc. You can just bind it to `Escape` in `[common]` and forget.
     + New option: `highlight_line_with_cursor` (thanks @SentientCoffee)
     + New option: `draw_indent_guides`. Set to `true` to draw a vertical guide line at every indent level (determined by tab size)
     + New option: `auto_surround_with_brackets_and_quotes` to enable auto-surrounding (thanks @hfr4)
     + New option: `scroll_beyond_last_line` (defaults to `true`). Disable to prevent scrolling past the editor's last line
+    + New option: `show_cursors_off_screen` (defaults to `true`). If enabled, displays a warning in the footer if there are cursors off screen (only when more than one is used)
+    + New option: `persist_local_search_results` (defaults to `false`). If enabled, search highlights will persist even when the search bar is closed. Press escape to dismiss (you might need to bind the `escape` action for it to work). (thanks @amasondev)
     + Added support for regular expressions in file/project search
     + Added a built-in 'save file' dialog (it will be on by default). To use the system dialogs on Windows, use `prefer_system_file_dialogs: true`
-    + Dragging middle mouse button will create cursors (thanks @hfr4)
+    + Dragging with the middle mouse button will create cursors (thanks @hfr4)
+    + Added an indicator showing if there are any cursors off screen (if you have more than one)
     + Mac: You can now set `maximize_on_start` in your global config to `true`, and Focus will launch in fullscreen.
     + New syntax highlighting:
         + Python
         + HTML/XML (thanks @arjenwitteveen)
         + Odin (thanks @SentientCoffee)
         + Yang (thanks @jmpstar)
+        + Lua (thanks @SentientCoffee)
     + Numpad keys can now be used in key mappings.
       The editor now recognizes the following new key names:
         Numpad0 - Numpad9
@@ -57,6 +105,15 @@
         NumpadDecimal
         NumpadEnter
     + Scopes in Jai are now highlighted. See the default config for the new color options (`region_scope_*`)
+    + Build system:
+        + New config options:
+            + `build_panel_width_percent`, `build_panel_height_percent` - how much space the build panel occupies. Both default to 50%.
+            + `build_panel_stays_in_one_place`. Defaults to `false`. If disabled, then the panel will flip to the other side of the active pane.
+        + Check an example build configuration in the example project or in the default config (use the show default config command)
+        + Thanks to the Jai beta user Jakob for writing the first version of the build system
+    + New code color: `code_warning`. Used to highlight things such as duplicate key binding etc.
+    + New dialog: Switch Between Open Files (defaults to Ctrl-Tab)
+    + Support horizontal scrolling with trackpads/mice with horizontal scroll wheels.
 
 + Bug fixes:
     + Mac: Fixed intermittent crashing on launch
@@ -76,6 +133,8 @@
     + Directories created within the project shouldn't get themselves any buffers any more
     + Newer user messages will stop dismissing older ones which have a longer lifetime
     + Fixed a crash when trying to rewind editor history after reloading workspace
+    + Fixed a crash when searching with whole word match on
+    + Aligned missing shortcuts on the welcome screen
 
 + Other changes:
     + When the workspace is done scanning, the open file dialog input will no longer be cleared
@@ -83,10 +142,9 @@
     + Better word detection by commands that move cursors by word
     + Config highlighting has become smarter and hopefully more helpful
     + Improved CPU usage when selecting text by mouse
-
-
-
-# RELEASES ==================================================================
+    + Tab characters are now only shown when they are within selection
+    + Windows: better handling of Unicode input (thanks @ostef)
+    + Fuzzy match improvements in dialogs
 
 
 # Version 0.2.0

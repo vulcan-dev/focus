@@ -98,7 +98,7 @@ workspace_update :: () {
 
                 files_per_thread := min((files_to_scan.count / num_threads) + 1, MAX_FILES_PER_JOB);
                 num_ranges  := (files_to_scan.count / files_per_thread) + 1;
-                file_ranges := NewArray(num_ranges, [] string, allocator = get_scan_pool_allocator());
+                file_ranges := NewArray(num_ranges, [] string,, allocator = get_scan_pool_allocator());
 
                 for 0..num_ranges-1 {
                     file_range := *file_ranges[it];
@@ -213,7 +213,11 @@ hard_reload_workspace :: () {
     init_buffers();
     init_build_system();
     update_window_title();
-    reopen_visible_editors(old_editor_state);
+    if automatic_workspace_reload {
+        reopen_visible_editors(old_editor_state);
+    } else {
+        show_open_file_dialog(.search);
+    }
     start_initial_workspace_scan();
 
     add_success_message("Workspace has been reloaded", dismiss_in_seconds=3);
@@ -308,6 +312,7 @@ Visible_Editor_State :: struct {
 }
 
 start_watching_file_if_not_already :: (file_path: string) {
+    assert(context.allocator.proc == focus_allocator.proc, "Unexpected context allocator for start_watching_file_if_not_already. This is a bug.");
     if file_is_watched(file_path) return;
 
     parent_dir := get_parent_dir_path(file_path);
@@ -411,9 +416,7 @@ directory_scan_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void
     file_range := cast(*[] string) work;
 
     for path : << file_range {
-        if !should_ignore_file(path) {
-            find_or_create_buffer(path);
-        }
+        if !should_ignore_file(path) then find_or_create_buffer(path);
     }
 
     return .CONTINUE;
@@ -449,7 +452,7 @@ file_change_callback :: (watcher: *File_Watcher(void), change: *File_Change, use
         print_to_builder(*b, "%", <<change);
         change_kind := "Project file";
         if watcher == *watchers.external_watcher change_kind = "External file";
-        defer log("% change: %\n", change_kind, builder_to_string(*b, allocator = temp));
+        defer log("% change: %\n", change_kind, builder_to_string(*b,, allocator = temp));
     }
 
     maybe_add_to_queue :: (dir: string) {
