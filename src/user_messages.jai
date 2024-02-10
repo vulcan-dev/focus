@@ -1,30 +1,31 @@
-add_user_error :: inline (message: string, dismiss_in_seconds: float64 = -1, tag := Tag.none ) {
-    add_user_message(message, .error, cast(Time) dismiss_in_seconds, tag);
-}
+add_user_error :: inline (message: string, args: .. Any, dismiss_in_seconds: float64 = 10, tag := Tag.none ) {
+    add_user_message(message, ..args, .error, cast(Time) dismiss_in_seconds, tag);
+} @PrintLike
 
-add_user_warning :: inline (message: string, dismiss_in_seconds: float64 = 10, tag := Tag.none) {
-    add_user_message(message, .warning, cast(Time) dismiss_in_seconds, tag);
-}
+add_user_warning :: inline (message: string, args: .. Any, dismiss_in_seconds: float64 = 10, tag := Tag.none) {
+    add_user_message(message, ..args, .warning, cast(Time) dismiss_in_seconds, tag);
+} @PrintLike
 
-add_success_message :: inline (message: string, dismiss_in_seconds: float64 = 10, tag := Tag.none) {
-    add_user_message(message, .success, cast(Time) dismiss_in_seconds, tag);
-}
+add_success_message :: inline (message: string, args: .. Any, dismiss_in_seconds: float64 = 10, tag := Tag.none) {
+    add_user_message(message, ..args, .success, cast(Time) dismiss_in_seconds, tag);
+} @PrintLike
 
-add_user_message :: (message: string, level: User_Message.Level, dismiss_in_seconds: Time, tag: Tag) {
+add_user_message :: (message: string, args: .. Any, level: User_Message.Level, dismiss_in_seconds: Time, tag: Tag) {
+    push_allocator(focus_allocator);  // so that we can call this function from anywhere. We always want to allocate messages using the same allocator
     array_add(*user_messages, User_Message.{
-        message            = copy_string(message),
+        message            = sprint(message, ..args),
         level              = level,
         tag                = tag,
-        time               = cast(Time) get_time(),
-        dismiss_in_seconds = cast(Time) dismiss_in_seconds,
+        time               = current_time_monotonic(),
+        dismiss_in_seconds = dismiss_in_seconds,
     });
-}
+} @PrintLike
 
-get_user_messages :: (current_time: Time) -> [] User_Message {
+get_user_messages :: (current_time: Apollo_Time) -> [] User_Message {
     // Cleanup the old or manually dismissed messages
     for < user_messages {
         // We do care about the order here, but since we're looping backwards we won't change the order
-        if (it.dismiss_in_seconds >= 0 && current_time - it.time > it.dismiss_in_seconds) || it.dismissed || !it.message {
+        if (it.dismiss_in_seconds >= 0 && to_float64_seconds(current_time - it.time) > it.dismiss_in_seconds) || it.dismissed || !it.message {
             free_message(it);
             remove it;
         }
@@ -57,7 +58,7 @@ User_Message :: struct {
     message: string;
     level: Level;
     tag: Tag;
-    time: Time;
+    time: Apollo_Time;
     dismiss_in_seconds: Time;
     dismissed: bool;
 
@@ -71,4 +72,4 @@ Tag :: enum_flags {
     build;
 }
 
-MAX_MESSAGES_ON_SCREEN :: 8;
+MAX_MESSAGES_ON_SCREEN :: 20;

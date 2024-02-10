@@ -1222,6 +1222,11 @@ X11_Lib :: struct #type_info_no_size_complaint {
 
     XEvent :: _XEvent;
 
+    XEventQueueOwner :: enum {
+        Xlib :: 0;
+        XCB  :: 1;
+    }
+
     Global_Atoms :: struct {
         XdndEnter                       : Atom; @opts(must_exist=false)
         XdndPosition                    : Atom; @opts(must_exist=false)
@@ -1257,6 +1262,7 @@ X11_Lib :: struct #type_info_no_size_complaint {
         _NET_WM_STATE_FULLSCREEN        : Atom;
         _NET_WM_STATE_MAXIMIZED_HORZ    : Atom;
         _NET_WM_STATE_MAXIMIZED_VERT    : Atom;
+        _NET_WM_ICON                    : Atom;
 
         _DUMMY : Atom; @opts(actual_name=JXSelectionWindowProperty)
     }
@@ -1371,6 +1377,7 @@ X11_Lib :: struct #type_info_no_size_complaint {
         XSetLocaleModifiers: (unk0: *u8) -> *u8 #c_call;
         XSetSelectionOwner: (unk0: *Display, unk1: Atom, unk2: Window, unk3: Time) -> s32 #c_call;
         XSetWMHints: (unk0: *Display, unk1: Window, unk2: *XWMHints) -> s32 #c_call;
+        XSetWMIconName: (unk0: *Display, unk1: Window, unk2: *XTextProperty) -> void #c_call;
         XSetWMName: (unk0: *Display, unk1: Window, unk2: *XTextProperty) -> void #c_call;
         XSetWMProtocols: (unk0: *Display, unk1: Window, unk2: *Atom, unk3: s32) -> s32 #c_call;
         XStoreName: (unk0: *Display, unk1: Window, unk2: *u8) -> s32 #c_call;
@@ -1384,6 +1391,12 @@ X11_Lib :: struct #type_info_no_size_complaint {
         XWidthOfScreen: (unk0: *Screen) -> s32 #c_call;
     }
     using _procs: Procs;
+
+    XCB_Compat_Procs :: struct {
+        XGetXCBConnection: (dpy: *Display) -> *void #c_call;
+        XSetEventQueueOwner: (dpy: *Display, owner: XEventQueueOwner) #c_call;
+    }
+    using _xcb_compat: XCB_Compat_Procs;
 
     DefaultRootWindow :: inline (display: *Display) -> Window {
         return ScreenOfDisplay(display, DefaultScreen(display)).root;
@@ -1427,7 +1440,7 @@ X11_Lib :: struct #type_info_no_size_complaint {
                 assert(note.count >= 1);
                 note.count -= 1;
 
-                pieces := split(note, ",");
+                pieces := split(note, ",",, allocator = temp);
                 for piece : pieces {
                     if starts_with(piece, "must_exist=") {
                         advance(*piece, "must_exist=".count);
@@ -1488,29 +1501,43 @@ X11_Lib :: struct #type_info_no_size_complaint {
     GLXContext :: *void;
 }
 
-xlib_load :: (intf: *X11_Lib) -> success := false {
+xlib_load :: (intf: *X11_Lib, init_xcb_compat := false) -> success := false {
     generic_c_call :: #type () #c_call;
 
-    dlerror();
-    lib := dlopen("libX11.so", RTLD_NOW);
-    if !lib {
-        log_error("Failed to load libX11.so: %", to_string(dlerror()));
+    populate_procs :: inline (procs: *$T, sonames: []string) -> bool {
+        for soname : sonames {
+            dlerror();
+            lib := dlopen(temp_c_string(soname), RTLD_NOW);
+            if !lib {
+                log_error("Failed to load %: %", soname, to_string(dlerror()));
+                continue;
+            }
+
+            tis := cast(*Type_Info_Struct) type_info(T);
+            for m : tis.members {
+                if m.type.type != .PROCEDURE continue;
+                if m.flags & .CONSTANT continue;
+
+                pi := cast(*Type_Info_Procedure) m.type;
+                if !(pi.procedure_flags & .IS_C_CALL) continue;
+
+                dlerror();
+                ppfn := cast(*generic_c_call)((cast(*u8) procs) + m.offset_in_bytes);
+                ppfn.* = cast(generic_c_call) dlsym(lib, m.name.data);
+                if !ppfn.* {
+                    log("Failed to resolve function '%' in '%': %", m.name, soname, to_string(dlerror()));
+                    continue soname;
+                }
+            }
+
+            log("X11: loaded %", soname);
+            return true;
+        }
         return false;
     }
 
-    tis := cast(*Type_Info_Struct) type_info(X11_Lib.Procs);
-    for m : tis.members {
-        if m.type.type != .PROCEDURE continue;
-        if m.flags & .CONSTANT continue;
-
-        pi := cast(*Type_Info_Procedure) m.type;
-        if !(pi.procedure_flags & .IS_C_CALL) continue;
-
-        dlerror();
-        ppfn := cast(*generic_c_call)((cast(*u8) *intf._procs) + m.offset_in_bytes);
-        ppfn.* = cast(generic_c_call) dlsym(lib, m.name.data);
-        assert(!!(ppfn.*), "Failed to resolve function '%': %", m.name, to_string(dlerror()));
-    }
+    if !populate_procs(*intf._procs, .["libX11.so.6", "libX11.so"]) return false;
+    if init_xcb_compat && !populate_procs(*intf._xcb_compat, .["libX11-xcb.so.1", "libX11-xcb.so"]) return false;
 
     return true;
 }

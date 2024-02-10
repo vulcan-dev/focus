@@ -8,15 +8,6 @@ platform_setup :: inline () {
     ver_id     :: #run sprint("%-%", app_id, app_ver_id);
     ver_id_key :: #run sprint("X-Focus-Ver-Id=%", ver_id);
 
-    sa := sigaction_t.{
-        sa_sigaction = (sig: s32, info: *siginfo_t, ctx: *void) #c_call {
-            if sig != SIGCHLD return;
-            waitpid(info._kill.si_pid, null, 0);
-        },
-        sa_flags = SA_SIGINFO,
-    };
-    sigaction(SIGCHLD, *sa, null);
-
     data_dir := platform_data_dir();
     defer free(data_dir);
 
@@ -77,6 +68,7 @@ DONE;
     if equal_nocase(backend_s, "prefer-x11") then backend = .PREFER_X11;
     if equal_nocase(backend_s, "wayland") then backend = .FORCE_WAYLAND;
     if equal_nocase(backend_s, "x11") then backend = .FORCE_X11;
+    if equal_nocase(backend_s, "xcb") then backend = .FORCE_XCB;
 
     gl_backend := LD.GL_BACKEND_CHOICE.AUTOSELECT;
     cstr = getenv("FOCUS_LD_GL_BACKEND");
@@ -84,12 +76,31 @@ DONE;
     if equal_nocase(backend_s, "glx") then gl_backend = .GLX;
     if equal_nocase(backend_s, "egl") then gl_backend = .EGL;
 
-    LD.init_with_stdlib_interop(desired_backend=backend, desired_gl_backend=gl_backend, app_id=app_id);
+    flags : LD.Init_Flags = 0;
+    cstr = getenv("FOCUS_LD_FLAGS");
+    flags_s := ifx cstr then to_lower_copy_new(to_string(cstr),, allocator = temp) else "";
+    flags_a := split(flags_s, ",",, allocator = temp);
+    for flag : flags_a {
+        if flag == {
+            case "xcb-pure"; flags |= .XCB_Pure;
+            case "xcb-core-events"; flags |= .XCB_Force_Core_Events;
+        }
+    }
+
+    LD.init_with_stdlib_interop(
+        desired_backend=backend,
+        desired_gl_backend=gl_backend,
+        flags=flags,
+        app_id=app_id);
 
     active_backend := LD.active_backend();
     assert(active_backend != .UNINITIALIZED);
 
     timer = LD.timer_create();
+    xdg_reap_timer = LD.timer_create(cb = (tid: LD.Timer, data: *void) {
+        XDG.reap_child_processes();
+    });
+    LD.timer_start(xdg_reap_timer, 500, 500);
 
     system_info.ld_backend_choice = backend;
     system_info.ld_backend = LD.active_backend();
@@ -118,9 +129,10 @@ platform_create_window :: () {
         window_width, window_height,
         window_generic_title,
         window_x, window_y,
-        background_color_rgb = as_3_floats(Colors.BACKGROUND));
+        background_color_rgb = color_as_3_floats(Color.BACKGROUND_0),
+    );
 
-    if LD.active_backend() == .X11 {
+    if LD.active_backend() != .WAYLAND {
         data := icon_data.png_data;
 
         width: s32;
@@ -168,7 +180,7 @@ platform_wait_message :: inline () {
 }
 
 platform_wake_up_main_thread :: () {
-    // TODO
+    LD.wake_up_event_loop();
 }
 
 platform_set_refresh_timer :: (window: Window_Type) {
@@ -249,9 +261,24 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
 
     push_allocator(temp);
 
-    env_check :: (sb: *String_Builder, name: *u8) {
-        val := getenv(name);
-        print_to_builder(sb, "  % : %\n", to_string(name), ifx val then to_string(val) else "<not set>");
+    env_check :: (sb: *String_Builder, names: .. *u8) {
+        for name : names {
+            val := getenv(name);
+            print_to_builder(sb, "  % : %\n", to_string(name), ifx val then to_string(val) else "<not set>");
+        }
+    }
+
+    env_check_by_prefix :: (sb: *String_Builder, prefixes: .. *u8) {
+        for prefix : prefixes {
+            ptr := environ;
+            while ptr.* {
+                defer ptr += 1;
+                parts := split(to_string(ptr.*), "=", 2,, allocator = temp);
+                if parts.count != 2 continue;
+                if !starts_with(parts[0], to_string(prefix)) continue;
+                print_to_builder(sb, "  % : %\n", parts[0], parts[1]);
+            }
+        }
     }
 
     gl_string :: (id: GLenum) -> string {
@@ -313,14 +340,14 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
             }
             if !rs break;
             array_reserve(*data, data.count + rs);
-            memcpy(data.data + data.count, buff.data, rs);
+            focus_memcpy(data.data + data.count, buff.data, rs);
             data.count += rs;
         }
 
         libs: [..] string;
-        lines := split(to_string(data.data, data.count), "\n");
+        lines := split(to_string(data.data, data.count), "\n",, allocator = temp);
         for line : lines {
-            parts := split(line, " ", 6);
+            parts := split(line, " ", 6,, allocator = temp);
             if parts.count != 6 continue;
             if parts[1].count != 4 continue;
             if parts[1][2] != #char "x" continue;
@@ -331,7 +358,7 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
             found := false;
             for l : libs {
                 if l == lib {
-                    found := true;
+                    found = true;
                     break;
                 }
             }
@@ -352,7 +379,7 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
     if !ok {
         print_to_builder(*sb, "  >> failed to read '/etc/os-release'\n");
     } else {
-        lines := split(os_data, "\n");
+        lines := split(os_data, "\n",, allocator = temp);
         for lines {
             line := trim(it);
             if line print_to_builder(*sb, "  %\n", line);
@@ -361,18 +388,13 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
     print_to_builder(*sb, "\n");
 
     print_to_builder(*sb, "Interesting things in the environment:\n");
-    env_check(*sb, "FOCUS_LD_BACKEND");
-    env_check(*sb, "FOCUS_LD_GL_BACKEND");
-    env_check(*sb, "DISPLAY");
-    env_check(*sb, "WAYLAND_DISPLAY");
-    env_check(*sb, "DESKTOP_SESSION");
-    env_check(*sb, "XDG_SESSION_DESKTOP");
-    env_check(*sb, "XDG_CURRENT_DESKTOP");
-    env_check(*sb, "XCURSOR_THEME");
-    env_check(*sb, "XCURSOR_SIZE");
-    env_check(*sb, "LD_LIBRARY_PATH");
-    env_check(*sb, "LD_PRELOAD");
+    env_check(*sb, "FOCUS_LD_BACKEND", "FOCUS_LD_GL_BACKEND", "FOCUS_LD_FLAGS");
+    env_check(*sb, "DISPLAY", "WAYLAND_DISPLAY");
+    env_check(*sb, "DESKTOP_SESSION", "XDG_SESSION_DESKTOP", "XDG_CURRENT_DESKTOP");
+    env_check(*sb, "XCURSOR_THEME", "XCURSOR_SIZE");
+    env_check(*sb, "LD_LIBRARY_PATH", "LD_PRELOAD");
     env_check(*sb, "PATH");
+    env_check_by_prefix(*sb, "__GL_");  // NVIDIA stuff
     print_to_builder(*sb, "\n");
 
     print_to_builder(*sb, "Loaded libraries:\n");
@@ -384,6 +406,9 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
     print_to_builder(*sb, "  active backend     : %\n", system_info.ld_backend);
     print_to_builder(*sb, "  desired GL backend : %\n", system_info.ld_gl_backend_choice);
     print_to_builder(*sb, "  active GL backend  : %\n", system_info.ld_gl_backend);
+    print_to_builder(*sb, "\n");
+
+    LD.dump_debug_info(*sb);
     print_to_builder(*sb, "\n");
 
     print_to_builder(*sb, "OpenGL Information:\n");
@@ -435,6 +460,7 @@ Linux_Icon :: struct {
 }
 
 timer: LD.Timer;
+xdg_reap_timer: LD.Timer;
 
 Linux_System_Info :: struct {
     ld_backend_choice: LD.BACKEND_CHOICE;
@@ -443,3 +469,5 @@ Linux_System_Info :: struct {
     ld_gl_backend: LD.GL_BACKEND;
 }
 system_info: Linux_System_Info;
+
+environ: **u8 #elsewhere;  // provided by the C runtime

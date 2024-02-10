@@ -1,14 +1,18 @@
-VERSION      :: "0.2.0-dev";
+VERSION      :: #run -> string {
+    result, revision := run_command("git", "rev-parse", "--short", "HEAD", capture_and_return_output = true);
+    if revision return sprint("0.3.1-%", trim(revision));
+    return "0.3.1-dev";
+}
 RELEASE_DATE :: #run -> string {
     current_time := to_calendar(current_time_consensus());
     return calendar_to_string(current_time);
 }
 
-#run build();
+#run,stallable build();
 
 build :: () {
     options := get_build_options();
-    options.minimum_macos_version = .{12, 0};
+    options.minimum_os_version = .{10, 13};
     args := options.compile_time_command_line;
 
     import_path: [..] string;
@@ -132,7 +136,6 @@ build :: () {
         run_command("rm", "-r", DMG_DIR);
 
         #import "MacOS_Bundler";
-        #import "Process";
         #import "File";
     }
 }
@@ -140,6 +143,8 @@ build :: () {
 #import "Compiler";
 #import "Basic";
 #import "File";
+#import "Process";
+#import "String";
 
 #if OS == .WINDOWS {
     #import "Ico_File";
@@ -182,6 +187,49 @@ build :: () {
 
         <key>NSHumanReadableCopyright</key>
         <string>© 2023 Ivan Ivanov</string>
+
+        <key>NSHighResolutionCapable</key>
+        <true/>
+
+        <key>CFBundleDocumentTypes</key>
+        <array>
+            <dict>
+                <key>CFBundleTypeName</key>
+                <string>Text Document</string>
+                <key>CFBundleTypeRole</key>
+                <string>Editor</string>
+                <key>LSItemContentTypes</key>
+                <array>
+                    <string>public.text</string>
+                </array>
+                <key>NSDocumentClass</key>
+                <string>Document</string>
+            </dict>
+            <dict>
+                <key>CFBundleTypeName</key>
+                <string>Text Document</string>
+                <key>CFBundleTypeRole</key>
+                <string>Editor</string>
+                <key>LSItemContentTypes</key>
+                <array>
+                    <string>public.plain-text</string>
+                </array>
+                <key>NSDocumentClass</key>
+                <string>Document</string>
+            </dict>
+            <dict>
+                <key>CFBundleTypeName</key>
+                <string>Unknown document</string>
+                <key>CFBundleTypeRole</key>
+                <string>Editor</string>
+                <key>LSItemContentTypes</key>
+                <array>
+                    <string>public.data</string>
+                </array>
+                <key>NSDocumentClass</key>
+                <string>Document</string>
+            </dict>
+        </array>
     </dict>
 </plist>
 STRING

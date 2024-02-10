@@ -12,7 +12,7 @@ highlight_c_syntax :: (using buffer: *Buffer) {
         if token.type == .punctuation && token.punctuation == .l_paren {
             // Handle "func("
             if last_token.type == .identifier {
-                memset(colors.data + last_token.start, xx Code_Color.FUNCTION, last_token.len);
+                memset(colors.data + last_token.start, xx Color.CODE_FUNCTION, last_token.len);
             }
         }
 
@@ -89,9 +89,6 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
 parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .identifier;
 
-    // mark := get_temporary_storage_mark();
-    // defer   set_temporary_storage_mark(mark);
-
     identifier_str := read_identifier_string(tokenizer);
 
     // Maybe it's a keyword
@@ -104,76 +101,74 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
 parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .number;
 
+    start_char := t.*;
+
     t += 1;
     if t >= max_t return;
 
-    if is_digit(<< t) {
+    if is_digit(t.*) || t.* == #char "." {
         // Decimal
-        t += 1;
         seen_decimal_point := false;
-        while t < max_t && (is_digit(<< t) || << t == #char ".") {
-            if << t == #char "." {
+        while t < max_t && (is_digit(t.*) || t.* == #char ".") {
+            if t.* == #char "." {
                 if seen_decimal_point break;
                 seen_decimal_point = true;
             }
             t += 1;
         }
         if t >= max_t return;
-        // t += 1;
-        // if t >= max_t return;
 
-        // exponent
-        if << t == #char "e" || << t == #char "E" {
+        // Exponent
+        if t.* == #char "e" || t.* == #char "E" {
             t += 1;
             if t >= max_t return;
 
-            if << t == #char "+" || << t == #char "-" {
+            if t.* == #char "+" || t.* == #char "-" {
               t += 1;
               if t >= max_t return;
             }
 
-            while t < max_t && is_digit(<< t) {
+            while t < max_t && is_digit(t.*) {
                 t += 1;
             }
             if t >= max_t return;
         }
 
-        // suffixes
+        // Suffixes
         if seen_decimal_point {
-            if << t == #char "f" || << t == #char "F" || << t == #char "d" || << t == #char "D" {
-              t += 1;
+            if t.* == #char "f" || t.* == #char "F" || t.* == #char "d" || t.* == #char "D" {
+                t += 1;
             }
         } else {
-
-          // This is getting kindof hard to follow...
-          if << t == #char "l" || << t == #char "L" {             // l
-              t += 1;
-              if t >= max_t return;
-
-              if << t == #char "l" || << t == #char "L" {         // ll
-                  t += 1;
-                  if t >= max_t return;
-
-                  if << t == #char "u" || << t == #char "U" {     // llu
-                    t += 1;
-                  }
-              } else if << t == #char "u" || << t == #char "U" {  // lu
+            if t.* == #char "l" || t.* == #char "L" {             // l
                 t += 1;
-              }
-          } else if  << t == #char "u" || << t == #char "U" {     // u
-              t += 1;
-          }
+                if t >= max_t return;
 
+                if t.* == #char "l" || t.* == #char "L" {         // ll
+                    t += 1;
+                    if t >= max_t return;
+
+                    if t.* == #char "u" || t.* == #char "U" {     // llu
+                    t += 1;
+                }
+            } else if t.* == #char "u" || t.* == #char "U" {      // lu
+                t += 1;
+            }
+            } else if  t.* == #char "u" || t.* == #char "U" {     // u
+                t += 1;
+            }
         }
+    } else if start_char == #char "0" {
+        if t.* == #char "x" || t.* == #char "X" {
+            // Hex
+            t += 1;
+            while t < max_t && (is_hex(t.*)) t += 1;
 
-    } else if << t == #char "x" || << t == #char "X" {
-        t += 1;
-        while t < max_t && (is_hex(<< t)) t += 1;
-
-    } else if << t == #char "b" || << t == #char "B" {
-        // Binary
-        t += 1;
-        while t < max_t && (<< t == #char "1" || << t == #char "0") t += 1;
+        } else if t.* == #char "b" || t.* == #char "B" {
+            // Binary
+            t += 1;
+            while t < max_t && (t.* == #char "1" || t.* == #char "0") t += 1;
+        }
     }
 }
 
@@ -305,9 +300,6 @@ parse_preprocessor_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     eat_white_space(tokenizer);  // there may be spaces between the # and the name
     if !is_alpha(<<t) return;
-
-    // mark := get_temporary_storage_mark();
-    // defer   set_temporary_storage_mark(mark);
 
     directive_str := read_identifier_string(tokenizer);
 
@@ -488,22 +480,22 @@ Token :: struct {
 }
 
 // Must match the order of the types in the enum above
-COLOR_MAP :: Code_Color.[
-    .COMMENT,       // eof - obviously not used
-    .DEFAULT,       // identifier
-    .STRING,        // string_literal
-    .STRING,        // char_literal
-    .VALUE,         // number
-    .COMMENT,       // comment
-    .COMMENT,       // multiline_comment
-    .OPERATION,     // operation
-    .PUNCTUATION,   // punctuation
-    .KEYWORD,       // keyword
-    .KEYWORD,       // modifier_keyword
-    .TYPE,          // type_keyword
-    .VALUE_KEYWORD, // value_keyword
-    .KEYWORD,       // preprocessor_directive
-    .ERROR,         // invalid
+COLOR_MAP :: Color.[
+    .CODE_COMMENT,       // eof - obviously not used
+    .CODE_DEFAULT,       // identifier
+    .CODE_STRING,        // string_literal
+    .CODE_STRING,        // char_literal
+    .CODE_VALUE,         // number
+    .CODE_COMMENT,       // comment
+    .CODE_COMMENT,       // multiline_comment
+    .CODE_OPERATION,     // operation
+    .CODE_PUNCTUATION,   // punctuation
+    .CODE_KEYWORD,       // keyword
+    .CODE_KEYWORD,       // modifier_keyword
+    .CODE_TYPE,          // type_keyword
+    .CODE_VALUE,         // value_keyword
+    .CODE_KEYWORD,       // preprocessor_directive
+    .CODE_ERROR,         // invalid
 ];
 
 Keyword :: enum u16 {

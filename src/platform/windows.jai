@@ -130,7 +130,7 @@ platform_get_centered_window_dimensions :: (open_on_biggest: bool, open_on_last:
 }
 
 platform_create_window :: () {
-    window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = as_3_floats(Colors.BACKGROUND));
+    window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = color_as_3_floats(Color.BACKGROUND_0));
     platform_set_border_color();
 }
 
@@ -152,7 +152,7 @@ platform_get_dpi_scale :: (window: Window_Type) -> float {
 }
 
 platform_set_window_title :: (title: string) {
-    SetWindowTextW(window, utf8_to_wide(title));
+    SetWindowTextW(window, utf8_to_wide_new(title,, allocator = temp));
 }
 
 platform_wait_message :: inline () {
@@ -160,7 +160,7 @@ platform_wait_message :: inline () {
 }
 
 platform_wake_up_main_thread :: () {
-    // TODO
+    PostMessageW(window, WM_USER, 0, 0);
 }
 
 platform_set_refresh_timer :: (window: Window_Type) {
@@ -180,7 +180,7 @@ platform_enumerate_logical_drives :: () -> [] string {
     drive_wstr := drives_buf.data;
     for drives_buf {
         if it == 0 {
-            drive, success := wide_to_utf8(drive_wstr);
+            drive, success := wide_to_utf8_new(drive_wstr,, allocator = temp);
             if !drive || !success break;
             drive.count -= 1;  // cut off separator
             array_add(*drives, drive);
@@ -200,8 +200,8 @@ platform_get_save_file_name :: (file_name := "") -> string /* temp */, success: 
 
     // Get the name to populate it in the filename box (convenient if we're resaving a deleted file)
     if name && name != "<new file>" {
-        wide_name, success, length := utf8_to_wide(name);
-        if success memcpy(buffer.data, wide_name, min(buffer.count, length));
+        wide_name, success, length := utf8_to_wide_new(name,, allocator = temp);
+        if success focus_memcpy(buffer.data, wide_name, min(buffer.count, length));
     }
 
     ofn: OPENFILENAMEW;
@@ -209,12 +209,12 @@ platform_get_save_file_name :: (file_name := "") -> string /* temp */, success: 
     ofn.hwndOwner   = window;
     ofn.lpstrFile   = buffer.data;
     ofn.nMaxFile    = buffer.count;
-    ofn.lpstrTitle  = utf8_to_wide(tprint("Choose where to save '%'", name));
+    ofn.lpstrTitle  = utf8_to_wide_new(tprint("Choose where to save '%'", name),, allocator = temp);
     ofn.Flags       = OFN_NOCHANGEDIR;
 
     for dir : project_dirs {
         if dir.path {
-            ofn.lpstrInitialDir = utf8_to_wide(dir.path);
+            ofn.lpstrInitialDir = utf8_to_wide_new(dir.path,, allocator = temp);
             break;
         }
     }
@@ -224,7 +224,7 @@ platform_get_save_file_name :: (file_name := "") -> string /* temp */, success: 
     open_success := GetSaveFileNameW(*ofn);
 
     if open_success {
-        file_path, success := wide_to_utf8(buffer.data);
+        file_path, success := wide_to_utf8_new(buffer.data,, allocator = temp);
         path_overwrite_separators(file_path, #char "/");
 
         if success {
@@ -262,9 +262,9 @@ platform_find_font_by_name :: (name: string, allocator := temp) -> bool, string 
                 path := to_string(buff.data, size);
                 if !is_absolute_path(path) {
                     full_path := tprint("%/%", platform_get_fonts_dir(), path);
-                    return true, copy_string(full_path, allocator);
+                    return true, copy_string(full_path,, allocator = allocator);
                 }
-                return true, copy_string(path, allocator);
+                return true, copy_string(path,, allocator = allocator);
             }
         }
     }
@@ -278,7 +278,7 @@ platform_get_fonts_dir :: () -> string {
         ret := SHGetKnownFolderPath(*FOLDERID_Fonts, KF_FLAG_CREATE, null, *path_utf16);
         defer CoTaskMemFree(path_utf16);
         if SUCCEEDED(ret) {
-            fonts_dir = copy_string(wide_to_utf8(path_utf16));
+            fonts_dir = wide_to_utf8_new(path_utf16);
             path_overwrite_separators(fonts_dir, #char "/");
         } else {
             fonts_dir = "C:/Windows/Fonts";
@@ -288,7 +288,7 @@ platform_get_fonts_dir :: () -> string {
 }
 
 platform_open_in_explorer :: (path: string, reveal := false) {
-    path_backslashes := copy_string(path, allocator = temp);
+    path_backslashes := copy_string(path,, allocator = temp);
     path_overwrite_separators(path_backslashes, #char "\\");
 
     if reveal run_command("explorer", "/select,", path_backslashes);
@@ -307,10 +307,10 @@ platform_set_border_color :: () {
     using DwmAttribute;
     col : u32 = 0xFFFFFFFF;
     if config.settings.colored_titlebar {
-        background := Colors.BACKGROUND;
-        r : u32 = cast(u32)(background.r * 255.0);
-        g : u32 = cast(u32)(background.g * 255.0);
-        b : u32 = cast(u32)(background.b * 255.0);
+        background := map_color_to_vec4(Color.BACKGROUND_0);
+        r : u32 = cast(u32)(background.x * 255.0);
+        g : u32 = cast(u32)(background.y * 255.0);
+        b : u32 = cast(u32)(background.z * 255.0);
         // COLORREF format is 0x00bbggrr
         col = 0x00000000;
         col |= b << 16;
@@ -320,7 +320,7 @@ platform_set_border_color :: () {
     DwmSetWindowAttribute(window, CAPTION_COLOR, *col, size_of(u32));
 
     darkmode := ifx config.settings.dark_titlebar then 1 else 0;
-    DwmSetWindowAttribute(window, USE_IMMERSIVE_DARK_MODE , *darkmode, size_of(type_of(darkmode)));
+    DwmSetWindowAttribute(window, USE_IMMERSIVE_DARK_MODE, *darkmode, size_of(type_of(darkmode)));
 }
 
 platform_show_cursor :: (show: bool) {
@@ -376,6 +376,8 @@ monitors : [..] Monitor;
 
 REFRESH_TIMER_ID :: 0;
 
+WM_USER :: 0x0400;
+
 user32   :: #system_library "user32";
 kernel32 :: #system_library "kernel32";
 shell32  :: #system_library "shell32";
@@ -385,6 +387,7 @@ KF_FLAG_CREATE :: 0x00008000;                                       // https://l
 FOLDERID_Fonts :: #run uid("FD228CB7-AE11-4AE3-864C-16F3910AB8FE"); // https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid
 
 WaitMessage :: () -> s32 #foreign user32;
+PostMessageW :: (hWnd: HWND, Msg: u32, wParam: WPARAM, lParam: LPARAM) -> BOOL #foreign user32;
 SetTimer  :: (hWnd: HWND, nIDEvent: u64, uElapse: u32, lpTimerFunc: *void) -> s32 #foreign user32;
 KillTimer :: (hWnd: HWND, nIDEvent: u64) -> bool #foreign user32;
 GetDpiForWindow :: (hWnd: HWND) -> u32 #foreign user32;
@@ -392,6 +395,12 @@ GetLogicalDriveStringsW :: (nBufferLength: DWORD, lpBuffer: *u16) -> DWORD #fore
 ShellExecuteW :: (hwnd: HWND, lpOperation: *u16, lpFile: *u16, lpParameters: *u16, lpDirectory: *u16, nShowCmd: int) -> s32 #foreign shell32;
 SHGetKnownFolderPath :: (nFolder: REFGUID, dwFlags: DWORD, hToken: HANDLE, pszPath: **u16) -> HRESULT #foreign shell32;
 CoTaskMemFree :: (pv: *void) #foreign ole32;
+SendMessageW :: (hwnd: HWND, Msg: u32, wParam: WPARAM, lParam: LPARAM) -> LRESULT #foreign user32;
+RedrawWindow :: (hwnd: HWND, lprcUpdate: *RECT, hrgnUpdate: HANDLE, flags: u32) -> BOOL #foreign user32;
+
+RDW_INVALIDATE :: 0x0001;
+RDW_UPDATENOW  :: 0x0100;
+RDW_FRAME      :: 0x0400;
 
 #import "Windows";
 #import "Windows_Registry";
@@ -401,29 +410,29 @@ Dwmapi :: #system_library "Dwmapi";
 DwmSetWindowAttribute :: (handle: HANDLE, dwAttribute: DwmAttribute, pvAttributde :*void, cbAttribute :DWORD) -> HRESULT #foreign Dwmapi;
 
 DwmAttribute :: enum u32 {
-  NCRENDERING_ENABLED;
-  NCRENDERING_POLICY;
-  TRANSITIONS_FORCEDISABLED;
-  ALLOW_NCPAINT;
-  CAPTION_BUTTON_BOUNDS;
-  NONCLIENT_RTL_LAYOUT;
-  FORCE_ICONIC_REPRESENTATION;
-  FLIP3D_POLICY;
-  EXTENDED_FRAME_BOUNDS;
-  HAS_ICONIC_BITMAP;
-  DISALLOW_PEEK;
-  EXCLUDED_FROM_PEEK;
-  CLOAK;
-  CLOAKED;
-  FREEZE_REPRESENTATION;
-  PASSIVE_UPDATE_MODE;
-  USE_HOSTBACKDROPBRUSH;
-  USE_IMMERSIVE_DARK_MODE :: 20;
-  WINDOW_CORNER_PREFERENCE :: 33;
-  BORDER_COLOR;
-  CAPTION_COLOR;
-  TEXT_COLOR;
-  VISIBLE_FRAME_BORDER_THICKNESS;
-  SYSTEMBACKDROP_TYPE;
-  LAST;
+    NCRENDERING_ENABLED;
+    NCRENDERING_POLICY;
+    TRANSITIONS_FORCEDISABLED;
+    ALLOW_NCPAINT;
+    CAPTION_BUTTON_BOUNDS;
+    NONCLIENT_RTL_LAYOUT;
+    FORCE_ICONIC_REPRESENTATION;
+    FLIP3D_POLICY;
+    EXTENDED_FRAME_BOUNDS;
+    HAS_ICONIC_BITMAP;
+    DISALLOW_PEEK;
+    EXCLUDED_FROM_PEEK;
+    CLOAK;
+    CLOAKED;
+    FREEZE_REPRESENTATION;
+    PASSIVE_UPDATE_MODE;
+    USE_HOSTBACKDROPBRUSH;
+    USE_IMMERSIVE_DARK_MODE :: 20;
+    WINDOW_CORNER_PREFERENCE :: 33;
+    BORDER_COLOR;
+    CAPTION_COLOR;
+    TEXT_COLOR;
+    VISIBLE_FRAME_BORDER_THICKNESS;
+    SYSTEMBACKDROP_TYPE;
+    LAST;
 }
